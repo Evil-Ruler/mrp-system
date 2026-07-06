@@ -1,0 +1,11 @@
+supplier_id,supplier_name,phone,email,address,lead_time_days
+SUP001,Timber Traders Pvt Ltd,9877001101,sales@timbertraders.in,"Bhopal, Madhya Pradesh",7
+SUP002,National Plywood House,9877001102,orders@nationalplywood.in,"Indore, Madhya Pradesh",5
+SUP003,MDF Solutions India,9877001103,sales@mdfsolutions.in,"Nagpur, Maharashtra",6
+SUP004,Veneer World,9877001104,contact@veneerworld.in,"Surat, Gujarat",8
+SUP005,Laminate Hub,9877001105,orders@laminatehub.in,"Ahmedabad, Gujarat",4
+SUP006,Hardware Kings,9877001106,sales@hardwarekings.in,"Delhi, India",3
+SUP007,Premium Fittings Co,9877001107,procurement@premiumfittings.in,"Mumbai, Maharashtra",5
+SUP008,Wood Polish Industries,9877001108,sales@woodpolish.in,"Jaipur, Rajasthan",4
+SUP009,Glass & Mirror Suppliers,9877001109,orders@glassmirror.in,"Hyderabad, Telangana",6
+SUP010,Adhesive Chemicals Ltd,9877001110,sales@adhesivechemicals.in,"Vadodara, Gujarat",5
