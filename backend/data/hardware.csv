@@ -1,0 +1,21 @@
+item_id,item_code,item_name,category,uom,current_stock,reorder_level,purchase_rate,selling_price,preferred_supplier
+31,HW001,Wood Screw 1 Inch,Hardware,Nos,25000,5000,1.5,0,SUP006
+32,HW002,Wood Screw 2 Inch,Hardware,Nos,18000,4000,2.5,0,SUP006
+33,HW003,Chipboard Screw,Hardware,Nos,22000,5000,1.8,0,SUP006
+34,HW004,Soft Close Hinge,Hardware,Nos,5000,1000,85.0,0,SUP007
+35,HW005,Standard Hinge,Hardware,Nos,7000,1500,45.0,0,SUP007
+36,HW006,Drawer Channel 18 Inch,Hardware,Pair,1200,300,140.0,0,SUP007
+37,HW007,Drawer Channel 16 Inch,Hardware,Pair,1000,250,130.0,0,SUP007
+38,HW008,Steel Handle 128mm,Hardware,Nos,2500,500,65.0,0,SUP007
+39,HW009,Aluminium Handle 96mm,Hardware,Nos,2200,500,55.0,0,SUP007
+40,HW010,Wardrobe Lock,Hardware,Nos,1000,200,150.0,0,SUP007
+41,HW011,Cabinet Lock,Hardware,Nos,1200,250,120.0,0,SUP007
+42,HW012,Furniture Wheel,Hardware,Nos,1500,300,45.0,0,SUP006
+43,HW013,L Bracket,Hardware,Nos,3000,500,18.0,0,SUP006
+44,HW014,Corner Bracket,Hardware,Nos,2500,500,22.0,0,SUP006
+45,HW015,Bed Connector Fitting,Hardware,Set,600,100,180.0,0,SUP007
+46,HW016,Shelf Support Pin,Hardware,Nos,5000,1000,3.0,0,SUP007
+47,HW017,Magnetic Catch,Hardware,Nos,2000,400,25.0,0,SUP007
+48,HW018,Door Stopper,Hardware,Nos,1500,300,30.0,0,SUP007
+49,HW019,Threaded Insert,Hardware,Nos,4000,800,8.0,0,SUP006
+50,HW020,Knock Down Fitting,Hardware,Set,800,150,95.0,0,SUP007

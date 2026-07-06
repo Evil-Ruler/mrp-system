@@ -1,0 +1,21 @@
+customer_id,customer_name,phone,email,address,gstin,payment_terms
+CUST001,ABC Interiors,9876543210,procurement@abcinteriors.in,"Bhopal, MP",23ABCDE1234F1Z5,Net 30
+CUST002,Urban Furniture House,9823011122,orders@urbanfurniture.in,"Indore, MP",23UFBDE2345G1Z2,Net 30
+CUST003,Home Decor Studio,9811122233,purchase@homedecor.in,"Nagpur, MH",27HDSDE3456H1Z7,Net 15
+CUST004,OfficeWorks India,9833344455,sourcing@officeworks.in,"Pune, MH",27OWIDE4567J1Z4,45 Days
+CUST005,Modern Living Spaces,9845566677,orders@modernliving.in,"Ahmedabad, GJ",24MLSDE5678K1Z8,50% Advance
+CUST006,Royal Furnishers,9856677788,buying@royalfurnishers.in,"Jaipur, RJ",08RFDDE6789L1Z3,Net 30
+CUST007,Elite Home Concepts,9867788899,purchase@elitehome.in,"Surat, GJ",24EHCDE7890M1Z1,Net 15
+CUST008,Prime Office Solutions,9878899900,orders@primeoffice.in,"Mumbai, MH",27POSDE8901N1Z5,Net 45
+CUST009,WoodCraft Retail,9889900011,procurement@woodcraft.in,"Bhopal, MP",23WCRDE9012P1Z9,Net 30
+CUST010,City Furniture Mart,9890011223,orders@cityfurniture.in,"Raipur, CG",22CFMDE0123Q1Z6,Net 30
+CUST011,Interior Junction,9891122334,purchase@interiorjunction.in,"Lucknow, UP",09IJNDE1234R1Z2,Net 15
+CUST012,Comfort Living,9892233445,orders@comfortliving.in,Delhi,07CLIDE2345S1Z7,Advance 100%
+CUST013,Design Nest,9893344556,buying@designnest.in,Chandigarh,04DNSDE3456T1Z4,Net 30
+CUST014,Corporate Furniture Hub,9894455667,procurement@cfhub.in,"Hyderabad, TS",36CFHDE4567U1Z8,Net 45
+CUST015,Lifestyle Interiors,9895566778,orders@lifestyleinteriors.in,"Kolkata, WB",19LIDDE5678V1Z5,Net 30
+CUST016,Space Makers,9896677889,purchase@spacemakers.in,"Vadodara, GJ",24SMDDE6789W1Z1,50% Advance
+CUST017,Dream Homes Retail,9897788990,orders@dreamhomes.in,"Nashik, MH",27DHRDE7890X1Z6,Net 15
+CUST018,Smart Workspace,9898899001,buying@smartworkspace.in,"Bengaluru, KA",29SWSDE8901Y1Z2,Net 30
+CUST019,Furniture Galaxy,9900011223,orders@furnituregalaxy.in,"Jabalpur, MP",23FGADE9012Z1Z9,Net 30
+CUST020,Premium Decor & Design,9901122334,procurement@premiumdecor.in,"Gurugram, HR",06PDDDE0123A1Z5,Net 45
