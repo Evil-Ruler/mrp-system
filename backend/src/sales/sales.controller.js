@@ -37,8 +37,35 @@ async function getSalesOrderById(req, res) {
     });
   }
 }
+async function createSalesOrder(req, res) {
+  try {
+    const {
+      salesOrderId,
+      customerId,
+      orderDate,
+      status,
+    } = req.body;
+
+    const salesOrder = await salesService.createSalesOrder({
+      salesOrderId,
+      customerId,
+      orderDate,
+      status,
+    });
+
+    return res.status(201).json(salesOrder);
+
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
 
 module.exports = {
   getAllSalesOrders,
   getSalesOrderById,
+  createSalesOrder,
 };
