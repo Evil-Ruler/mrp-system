@@ -1,9 +1,15 @@
 const prisma = require("../lib/prisma");
 
+// =============================
+// GET ALL SALES ORDERS
+// =============================
 async function getAllSalesOrders() {
   return prisma.salesOrder.findMany();
 }
 
+// =============================
+// GET SALES ORDER BY ID
+// =============================
 async function getSalesOrderById(id) {
   return prisma.salesOrder.findUnique({
     where: {
@@ -11,6 +17,21 @@ async function getSalesOrderById(id) {
     },
   });
 }
+
+// =============================
+// GET CUSTOMER BY ID
+// =============================
+async function getCustomerById(customerId) {
+  return prisma.customer.findUnique({
+    where: {
+      customerId,
+    },
+  });
+}
+
+// =============================
+// CREATE SALES ORDER
+// =============================
 async function createSalesOrder(data) {
   return prisma.salesOrder.create({
     data: {
@@ -21,6 +42,10 @@ async function createSalesOrder(data) {
     },
   });
 }
+
+// =============================
+// UPDATE SALES ORDER
+// =============================
 async function updateSalesOrder(id, data) {
   return prisma.salesOrder.update({
     where: {
@@ -29,6 +54,10 @@ async function updateSalesOrder(id, data) {
     data,
   });
 }
+
+// =============================
+// DELETE SALES ORDER
+// =============================
 async function deleteSalesOrder(id) {
   return prisma.salesOrder.delete({
     where: {
@@ -40,6 +69,7 @@ async function deleteSalesOrder(id) {
 module.exports = {
   getAllSalesOrders,
   getSalesOrderById,
+  getCustomerById,
   createSalesOrder,
   updateSalesOrder,
   deleteSalesOrder,
