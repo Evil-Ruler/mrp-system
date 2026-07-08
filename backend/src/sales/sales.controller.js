@@ -63,9 +63,46 @@ async function createSalesOrder(req, res) {
     });
   }
 }
+async function updateSalesOrder(req, res) {
+  try {
+    const { id } = req.params;
+
+    const updatedOrder = await salesService.updateSalesOrder(
+      id,
+      req.body
+    );
+
+    res.status(200).json(updatedOrder);
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
+async function deleteSalesOrder(req, res) {
+  try {
+    const { id } = req.params;
+
+    await salesService.deleteSalesOrder(id);
+
+    return res.status(204).send();
+
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
 
 module.exports = {
   getAllSalesOrders,
   getSalesOrderById,
   createSalesOrder,
+  updateSalesOrder,
+  deleteSalesOrder,
 };

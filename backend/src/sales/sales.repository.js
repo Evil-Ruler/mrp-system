@@ -21,9 +21,26 @@ async function createSalesOrder(data) {
     },
   });
 }
+async function updateSalesOrder(id, data) {
+  return prisma.salesOrder.update({
+    where: {
+      salesOrderId: id,
+    },
+    data,
+  });
+}
+async function deleteSalesOrder(id) {
+  return prisma.salesOrder.delete({
+    where: {
+      salesOrderId: id,
+    },
+  });
+}
 
 module.exports = {
   getAllSalesOrders,
   getSalesOrderById,
   createSalesOrder,
+  updateSalesOrder,
+  deleteSalesOrder,
 };
