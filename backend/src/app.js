@@ -6,6 +6,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const mrpRoutes = require("./mrp/routes/mrp.routes");
+app.use("/api/mrp", mrpRoutes);
+
 app.get("/", (req, res) => {
     res.send("MRP Backend Running");
 });
