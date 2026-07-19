@@ -47,6 +47,10 @@ src/mrp/
 ├── index.js                # Module entry point exporting public APIs
 ├── constants/
 │   └── mrp.constants.js    # Immutable configuration settings & statuses (Placeholder)
+├── types/
+│   └── mrp.types.js        # Shared JSDoc contracts for MRP domain objects
+├── errors/
+│   └── mrp.errors.js       # Shared MRP error types
 ├── routes/
 │   └── mrp.routes.js       # Express routing registers
 ├── controllers/
@@ -65,8 +69,14 @@ src/mrp/
 * **Routes**: Maps HTTP paths to controller handlers. Does not contain logic.
 * **Controllers**: Handles Express integrations, extracts input, formats JSON outputs, maps HTTP status codes, and handles uncaught controller-level exceptions.
 * **Services**: The orchestrator of system transactions. Combines repository-level database queries and coordinates processing flows.
-* **Repositories**: Manages connection pools and issues queries to the database using Prisma.
+* **Repositories**: Performs read access via Prisma, maps records to plain objects, and never owns business rules.
 * **Algorithms**: Decoupled utilities performing mathematical calculations.
+
+### Repository Notes (Milestone 1)
+* `select` is preferred over `include` to fetch only planning fields needed by MRP and keep payloads small.
+* Nested relation reads (sales order line + product + sales order, BOM header + BOM lines) are bulk-loaded to avoid N+1 query patterns.
+* Repository output is always plain JavaScript objects so service/algorithms remain independent from Prisma models.
+* Business rules and planning decisions belong to the service layer, not the repository.
 
 ---
 
