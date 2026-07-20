@@ -223,3 +223,162 @@ test("sortDemand - sorts demand by requiredDate, salesOrderId, and salesOrderLin
   assert.equal(sorted[1].salesOrderLineId, 2);
   assert.equal(sorted[2].salesOrderId, "SO-002");
 });
+
+// ============================================================================
+// NEW TESTS: BOM AMBIGUITY, EMPTY BOMS, ORPHAN HEADERS/LINES, NON-FINITE NUMBERS
+// ============================================================================
+
+test("validateBom - throws ValidationError when multiple BOM headers exist for the same finished good", () => {
+  const items = [
+    { itemId: 100, itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "PCS" },
+    { itemId: 200, itemCode: "RM-200", itemType: "RAW_MATERIAL", baseUom: "KG" },
+  ];
+  const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
+  const bom = {
+    headers: [
+      { bomHeaderId: "BOM-100-v1", parentItemId: 100 },
+      { bomHeaderId: "BOM-100-v2", parentItemId: 100 },
+    ],
+    lines: [
+      { bomLineId: 1, bomHeaderId: "BOM-100-v1", parentItemId: 100, childItemId: 200, qtyPerParent: 2 },
+      { bomLineId: 2, bomHeaderId: "BOM-100-v2", parentItemId: 100, childItemId: 200, qtyPerParent: 3 },
+    ],
+  };
+
+  assert.throws(
+    () => validateBom(bom, demand, items),
+    (err) =>
+      err instanceof ValidationError &&
+      err.message.includes("Multiple BOMs found for Finished Good FG-001")
+  );
+});
+
+test("validateBom - throws ValidationError when demanded finished good has an empty BOM (0 components)", () => {
+  const items = [{ itemId: 100, itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "PCS" }];
+  const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
+  const bom = {
+    headers: [{ bomHeaderId: "BOM-100", parentItemId: 100 }],
+    lines: [],
+  };
+
+  assert.throws(
+    () => validateBom(bom, demand, items),
+    (err) =>
+      err instanceof ValidationError &&
+      err.message.includes("Finished Good FG-001 is required for planning but its BOM contains no components")
+  );
+});
+
+test("validateBom - succeeds when unused finished good has an empty BOM but demanded finished good has valid BOM", () => {
+  const items = [
+    { itemId: 100, itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "PCS" },
+    { itemId: 101, itemCode: "FG-002", itemType: "FINISHED_GOOD", baseUom: "PCS" },
+    { itemId: 200, itemCode: "RM-200", itemType: "RAW_MATERIAL", baseUom: "KG" },
+  ];
+  // Only FG-001 is demanded
+  const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
+  const bom = {
+    headers: [
+      { bomHeaderId: "BOM-100", parentItemId: 100 },
+      { bomHeaderId: "BOM-101", parentItemId: 101 }, // Unused FG-002
+    ],
+    lines: [
+      { bomLineId: 1, bomHeaderId: "BOM-100", parentItemId: 100, childItemId: 200, qtyPerParent: 2 },
+      // BOM-101 has 0 lines, but FG-002 is not demanded!
+    ],
+  };
+
+  assert.doesNotThrow(() => validateBom(bom, demand, items));
+});
+
+test("validateBom - does not traverse into a sub-assembly BOM", () => {
+  const items = [
+    { itemId: 100, itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "PCS" },
+    { itemId: 200, itemCode: "SA-200", itemType: "SUB_ASSEMBLY", baseUom: "PCS" },
+  ];
+  const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
+  const bom = {
+    headers: [
+      { bomHeaderId: "BOM-100", parentItemId: 100 },
+      { bomHeaderId: "BOM-200", parentItemId: 200 },
+    ],
+    lines: [
+      { bomLineId: 1, bomHeaderId: "BOM-100", parentItemId: 100, childItemId: 200, qtyPerParent: 2 },
+    ],
+  };
+
+  assert.doesNotThrow(() => validateBom(bom, demand, items));
+});
+
+test("validateBom - throws ValidationError for orphan BOM line referencing non-existent BOM header", () => {
+  const items = [
+    { itemId: 100, itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "PCS" },
+    { itemId: 200, itemCode: "RM-200", itemType: "RAW_MATERIAL", baseUom: "KG" },
+  ];
+  const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
+  const bom = {
+    headers: [{ bomHeaderId: "BOM-100", parentItemId: 100 }],
+    lines: [
+      { bomLineId: 1, bomHeaderId: "BOM-999-NONEXISTENT", parentItemId: 100, childItemId: 200, qtyPerParent: 2 },
+    ],
+  };
+
+  assert.throws(
+    () => validateBom(bom, demand, items),
+    (err) =>
+      err instanceof ValidationError &&
+      err.message.includes("Orphan BOM line 1 references non-existent BOM header BOM-999-NONEXISTENT")
+  );
+});
+
+test("validateBom - throws ValidationError when BOM header references non-existent parent item in item master", () => {
+  const items = [{ itemId: 200, itemCode: "RM-200", itemType: "RAW_MATERIAL", baseUom: "KG" }];
+  const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
+  const bom = {
+    headers: [{ bomHeaderId: "BOM-100", parentItemId: 100 }],
+    lines: [
+      { bomLineId: 1, bomHeaderId: "BOM-100", parentItemId: 100, childItemId: 200, qtyPerParent: 2 },
+    ],
+  };
+
+  assert.throws(
+    () => validateBom(bom, demand, items),
+    (err) =>
+      err instanceof ValidationError &&
+      err.message.includes("references parent item 100 which does not exist in Item Master")
+  );
+});
+
+test("validateDemand & validateBom - rejects Infinity, -Infinity, and NaN quantities", () => {
+  const invalidQuantities = [Infinity, -Infinity, NaN];
+
+  for (const qty of invalidQuantities) {
+    assert.throws(
+      () =>
+        validateDemand([
+          { demandId: "D1", itemId: 100, quantity: qty, requiredDate: new Date() },
+        ]),
+      (err) => err instanceof ValidationError && err.message.includes("Quantity must be greater than zero")
+    );
+  }
+
+  const items = [
+    { itemId: 100, itemCode: "FG-100", itemType: "FINISHED_GOOD", baseUom: "PCS" },
+    { itemId: 200, itemCode: "RM-200", itemType: "RAW_MATERIAL", baseUom: "KG" },
+  ];
+  const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
+
+  for (const qty of invalidQuantities) {
+    const bom = {
+      headers: [{ bomHeaderId: "BOM-100", parentItemId: 100 }],
+      lines: [
+        { bomLineId: 1, bomHeaderId: "BOM-100", parentItemId: 100, childItemId: 200, qtyPerParent: qty },
+      ],
+    };
+
+    assert.throws(
+      () => validateBom(bom, demand, items),
+      (err) => err instanceof ValidationError && err.message.includes("qtyPerParent greater than zero")
+    );
+  }
+});

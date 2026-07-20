@@ -30,23 +30,50 @@ const { ValidationError } = require("../errors/mrp.errors");
  */
 
 /**
- * Builds a pre-indexed BOM lookup map for O(1) child retrieval.
+ * Builds a pre-indexed BOM lookup map for O(1) child retrieval via BOMHeader -> BOMLines.
  *
- * @param {BomLine[]} [lines]
+ * @param {{headers?: BomHeader[], lines?: BomLine[]}|BomLine[]} [bom]
  * @returns {Map<number, BomLine[]>}
  */
-function createBomLookup(lines) {
+function createBomLookup(bom) {
   const bomMap = new Map();
-  if (!Array.isArray(lines)) {
+  if (!bom || typeof bom !== "object") {
     return bomMap;
   }
 
+  const headers = Array.isArray(bom.headers) ? bom.headers : [];
+  const lines = Array.isArray(bom.lines) ? bom.lines : (Array.isArray(bom) ? bom : []);
+
+  const parentToHeaderMap = new Map();
+  for (let i = 0; i < headers.length; i++) {
+    const h = headers[i];
+    if (h && h.parentItemId !== undefined && h.bomHeaderId) {
+      parentToHeaderMap.set(h.parentItemId, h.bomHeaderId);
+    }
+  }
+
+  const headerToLinesMap = new Map();
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!bomMap.has(line.parentItemId)) {
-      bomMap.set(line.parentItemId, []);
+    if (!line) continue;
+
+    const headerId = line.bomHeaderId || parentToHeaderMap.get(line.parentItemId);
+    if (headerId) {
+      if (!headerToLinesMap.has(headerId)) {
+        headerToLinesMap.set(headerId, []);
+      }
+      headerToLinesMap.get(headerId).push(line);
+    } else if (line.parentItemId !== undefined) {
+      if (!bomMap.has(line.parentItemId)) {
+        bomMap.set(line.parentItemId, []);
+      }
+      bomMap.get(line.parentItemId).push(line);
     }
-    bomMap.get(line.parentItemId).push(line);
+  }
+
+  for (const [parentId, headerId] of parentToHeaderMap.entries()) {
+    const childLines = headerToLinesMap.get(headerId) || [];
+    bomMap.set(parentId, childLines);
   }
 
   return bomMap;
@@ -192,7 +219,7 @@ function explodeBom(planningData) {
     return [];
   }
 
-  const bomLookup = createBomLookup(planningData.bom?.lines);
+  const bomLookup = createBomLookup(planningData.bom);
   const results = [];
 
   for (let i = 0; i < planningData.demand.length; i++) {

@@ -542,3 +542,86 @@ test("E2E - High volume performance stress verification (100 demands, multi-leve
   assert.equal(result.recommendations.length, 200);
   assert.ok(duration < 200, `Expected runPlanning to complete in < 200ms, took ${duration}ms`);
 });
+
+// ============================================================================
+// TEST 19, 20, 21: AMBIGUOUS BOMS, EMPTY BOMS, MULTI-RUN STABILITY
+// ============================================================================
+
+test("E2E - Rejects planning run with ValidationError when multiple BOM headers exist for same finished good", async () => {
+  repository.getDemandOrderLines = async () => [
+    { demandId: "SO-1:1", salesOrderId: "SO-1", salesOrderLineId: 1, itemId: 1000, quantity: 10, requiredDate: new Date("2026-08-10"), uom: "PCS" },
+  ];
+  repository.getItems = async () => [
+    { itemId: 1000, itemCode: "FG-1000", itemType: "FINISHED_GOOD", procurementType: "PRODUCTION", baseUom: "PCS" },
+    { itemId: 3000, itemCode: "RM-3000", itemType: "RAW_MATERIAL", procurementType: "PURCHASE", baseUom: "KG" },
+  ];
+  repository.getBomData = async () => ({
+    headers: [
+      { bomHeaderId: "BOM-1000-A", parentItemId: 1000 },
+      { bomHeaderId: "BOM-1000-B", parentItemId: 1000 },
+    ],
+    lines: [
+      { bomLineId: 1, bomHeaderId: "BOM-1000-A", parentItemId: 1000, childItemId: 3000, qtyPerParent: 2 },
+      { bomLineId: 2, bomHeaderId: "BOM-1000-B", parentItemId: 1000, childItemId: 3000, qtyPerParent: 3 },
+    ],
+  });
+  repository.getInventory = async () => [];
+  repository.getOpenPurchaseOrders = async () => [];
+  repository.getOpenProductionOrders = async () => [];
+
+  await assert.rejects(
+    () => mrpService.runPlanning(),
+    (err) => err instanceof ValidationError && err.message.includes("Multiple BOMs found for Finished Good FG-1000")
+  );
+});
+
+test("E2E - Rejects planning run when active demanded finished good has an empty BOM", async () => {
+  repository.getDemandOrderLines = async () => [
+    { demandId: "SO-1:1", salesOrderId: "SO-1", salesOrderLineId: 1, itemId: 1000, quantity: 10, requiredDate: new Date("2026-08-10"), uom: "PCS" },
+  ];
+  repository.getItems = async () => [
+    { itemId: 1000, itemCode: "FG-1000", itemType: "FINISHED_GOOD", procurementType: "PRODUCTION", baseUom: "PCS" },
+  ];
+  repository.getBomData = async () => ({
+    headers: [{ bomHeaderId: "BOM-1000", parentItemId: 1000 }],
+    lines: [],
+  });
+  repository.getInventory = async () => [];
+  repository.getOpenPurchaseOrders = async () => [];
+  repository.getOpenProductionOrders = async () => [];
+
+  await assert.rejects(
+    () => mrpService.runPlanning(),
+    (err) => err instanceof ValidationError && err.message.includes("Finished Good FG-1000 is required for planning but its BOM contains no components")
+  );
+});
+
+test("E2E - Produces strictly stable planning output across 10 repeated executions", async () => {
+  repository.getDemandOrderLines = async () => [
+    { demandId: "SO-1:1", salesOrderId: "SO-1", salesOrderLineId: 1, itemId: 1000, quantity: 5, requiredDate: new Date("2026-08-10"), uom: "PCS" },
+    { demandId: "SO-2:1", salesOrderId: "SO-2", salesOrderLineId: 1, itemId: 1000, quantity: 10, requiredDate: new Date("2026-08-12"), uom: "PCS" },
+  ];
+  repository.getItems = async () => [
+    { itemId: 1000, itemCode: "FG-1000", itemType: "FINISHED_GOOD", procurementType: "PRODUCTION", baseUom: "PCS" },
+    { itemId: 3000, itemCode: "RM-3000", itemType: "RAW_MATERIAL", procurementType: "PURCHASE", baseUom: "KG" },
+  ];
+  repository.getBomData = async () => ({
+    headers: [{ bomHeaderId: "BOM-1000", parentItemId: 1000 }],
+    lines: [{ bomLineId: 1, bomHeaderId: "BOM-1000", parentItemId: 1000, childItemId: 3000, qtyPerParent: 2 }],
+  });
+  repository.getInventory = async () => [];
+  repository.getOpenPurchaseOrders = async () => [];
+  repository.getOpenProductionOrders = async () => [];
+
+  const firstRun = await mrpService.runPlanning();
+
+  for (let run = 0; run < 10; run++) {
+    const nextRun = await mrpService.runPlanning();
+    assert.deepEqual(nextRun.salesOrders, firstRun.salesOrders);
+    assert.deepEqual(nextRun.explodedRequirements, firstRun.explodedRequirements);
+    assert.deepEqual(nextRun.netRequirements, firstRun.netRequirements);
+    assert.deepEqual(nextRun.allocatedRequirements, firstRun.allocatedRequirements);
+    assert.deepEqual(nextRun.recommendations, firstRun.recommendations);
+    assert.deepEqual(nextRun.summary, firstRun.summary);
+  }
+});

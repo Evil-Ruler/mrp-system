@@ -162,6 +162,11 @@ class MRPRepository {
     try {
       const demandLines = await prisma.salesOrderLine.findMany({
         where,
+        orderBy: [
+          { salesOrder: { orderDate: "asc" } },
+          { salesOrderId: "asc" },
+          { salesOrderLineId: "asc" },
+        ],
         select: {
           salesOrderLineId: true,
           salesOrderId: true,
@@ -198,10 +203,17 @@ class MRPRepository {
   async getBomData() {
     try {
       const bomHeaders = await prisma.bOMHeader.findMany({
+        orderBy: [
+          { finishedGoodId: "asc" },
+          { bomId: "asc" },
+        ],
         select: {
           bomId: true,
           finishedGoodId: true,
           bomLines: {
+            orderBy: [
+              { bomLineId: "asc" },
+            ],
             select: {
               bomLineId: true,
               bomId: true,
@@ -235,6 +247,9 @@ class MRPRepository {
   async getItems() {
     try {
       const items = await prisma.item.findMany({
+        orderBy: {
+          itemId: "asc",
+        },
         select: {
           itemId: true,
           itemCode: true,
@@ -258,6 +273,9 @@ class MRPRepository {
   async getInventory() {
     try {
       const items = await prisma.item.findMany({
+        orderBy: {
+          itemId: "asc",
+        },
         select: {
           itemId: true,
           currentStock: true,
@@ -284,6 +302,11 @@ class MRPRepository {
             status: { in: ["OPEN", "RELEASED", "APPROVED", "CONFIRMED"] },
           },
         },
+        orderBy: [
+          { purchaseOrder: { orderDate: "asc" } },
+          { purchaseOrderId: "asc" },
+          { purchaseOrderLineId: "asc" },
+        ],
         select: {
           purchaseOrderId: true,
           materialId: true,
@@ -314,6 +337,10 @@ class MRPRepository {
         where: {
           status: { in: ["OPEN", "RELEASED", "IN_PROGRESS", "PLANNED"] },
         },
+        orderBy: [
+          { startDate: "asc" },
+          { productionOrderId: "asc" },
+        ],
         select: {
           productionOrderId: true,
           productId: true,

@@ -171,8 +171,8 @@ runPlanning(filters)
     │
     ├── Stage 0.5: Domain Validation
     │   ├── validateItems(items)
-    │   ├── validateDemand(demand)
-    │   ├── validateBom(bom, demand, items)
+    │   ├── validateDemand(demand)           (validates Number.isFinite on quantities)
+    │   ├── validateBom(bom, demand, items)  (BOM ambiguity, participating parent empty BOMs, orphan lines, Number.isFinite on qtyPerParent)
     │   └── sortDemand(demand)              → Demand[] (sorted)
     │
     ├── Stage 1: BOM Explosion
@@ -526,9 +526,9 @@ The test suite uses Node.js built-in `node:test` runner with `node:assert/strict
 | **Repository** | `repositories/mrp.repository.test.js` | 1 file | Data access and domain mapping tests |
 | **HTTP API** | `tests/mrp.api.test.js` | 1 file | Supertest HTTP endpoint integration tests |
 | **System Integration** | `tests/mrp.integration.test.js` | 1 file | Cross-layer integration scenarios |
-| **E2E Pipeline** | `mrp.e2e.test.js` | 1 file | Full pipeline execution with 15 production scenarios |
+| **E2E Pipeline** | `mrp.e2e.test.js` | 1 file | Full pipeline execution with 21 production scenarios |
 
-**Total**: 148 passing tests.
+**Total**: 157 passing tests.
 
 ### Running Tests
 

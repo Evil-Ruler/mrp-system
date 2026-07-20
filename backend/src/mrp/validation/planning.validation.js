@@ -65,7 +65,7 @@ function validateDemand(demandLines) {
       throw new ValidationError(`Demand line ${line.demandId || i} is missing a valid requiredDate.`);
     }
 
-    if (typeof line.quantity !== "number" || isNaN(line.quantity) || line.quantity <= 0) {
+    if (typeof line.quantity !== "number" || !Number.isFinite(line.quantity) || line.quantity <= 0) {
       throw new ValidationError(`Demand line ${line.demandId || i} has an invalid quantity (${line.quantity}). Quantity must be greater than zero.`);
     }
   }
@@ -84,24 +84,85 @@ function validateBom(bom, demandLines, items) {
     throw new ValidationError("BOM data must contain headers and lines arrays.");
   }
 
-  const bomParentItemIds = new Set(bom.headers.map((h) => h.parentItemId));
   const validItemIds = new Set(items.map((it) => it.itemId));
+  const itemCodeMap = new Map(items.map((it) => [it.itemId, it.itemCode]));
 
-  for (const line of demandLines) {
-    if (!bomParentItemIds.has(line.itemId)) {
-      throw new ValidationError(`Demanded item ${line.itemId} does not have a Bill of Materials (BOM).`);
+  // 1. Group BOMHeader records by parentItemId / finishedGoodId
+  const headersByParent = new Map();
+  const headerIdSet = new Set();
+
+  for (let i = 0; i < bom.headers.length; i++) {
+    const header = bom.headers[i];
+    const parentId = header.parentItemId;
+
+    if (!validItemIds.has(parentId)) {
+      throw new ValidationError(
+        `BOM header ${header.bomHeaderId || i} references parent item ${parentId} which does not exist in Item Master.`
+      );
+    }
+
+    if (header.bomHeaderId) {
+      headerIdSet.add(header.bomHeaderId);
+    }
+
+    if (!headersByParent.has(parentId)) {
+      headersByParent.set(parentId, []);
+    }
+    headersByParent.get(parentId).push(header);
+  }
+
+  // Check for multiple BOM headers per finished good / parent item
+  for (const [parentId, headerList] of headersByParent.entries()) {
+    if (headerList.length > 1) {
+      const codeStr = itemCodeMap.get(parentId) || `FG-${parentId}`;
+      throw new ValidationError(
+        `Multiple BOMs found for Finished Good ${codeStr}. Phase 2 supports exactly one BOM per finished good.`
+      );
     }
   }
+
+  // 2. Validate BOM lines (orphan BOM lines, missing child items, and Number.isFinite for qtyPerParent)
+  const linesByHeader = new Map();
 
   for (let i = 0; i < bom.lines.length; i++) {
     const bomLine = bom.lines[i];
 
-    if (typeof bomLine.qtyPerParent !== "number" || isNaN(bomLine.qtyPerParent) || bomLine.qtyPerParent <= 0) {
+    if (typeof bomLine.qtyPerParent !== "number" || !Number.isFinite(bomLine.qtyPerParent) || bomLine.qtyPerParent <= 0) {
       throw new ValidationError(`BOM line ${bomLine.bomLineId || i} must have a qtyPerParent greater than zero.`);
     }
 
     if (!validItemIds.has(bomLine.childItemId)) {
       throw new ValidationError(`BOM child item ${bomLine.childItemId} does not exist in Item Master.`);
+    }
+
+    if (!headerIdSet.has(bomLine.bomHeaderId)) {
+      throw new ValidationError(
+        `Orphan BOM line ${bomLine.bomLineId || i} references non-existent BOM header ${bomLine.bomHeaderId}.`
+      );
+    }
+
+    if (!linesByHeader.has(bomLine.bomHeaderId)) {
+      linesByHeader.set(bomLine.bomHeaderId, []);
+    }
+    linesByHeader.get(bomLine.bomHeaderId).push(bomLine);
+  }
+
+  // 3. Validate only directly demanded finished goods. Recursive BOM graph
+  // traversal, including validation of reachable sub-assemblies and cycle
+  // detection, belongs exclusively to bomExplosion.js.
+  for (const demandLine of demandLines) {
+    const headers = headersByParent.get(demandLine.itemId);
+    if (!headers || headers.length === 0) {
+      throw new ValidationError(`Demanded item ${demandLine.itemId} does not have a Bill of Materials (BOM).`);
+    }
+
+    const header = headers[0];
+    const childLines = linesByHeader.get(header.bomHeaderId) || [];
+    if (childLines.length === 0) {
+      const codeStr = itemCodeMap.get(demandLine.itemId) || `FG-${demandLine.itemId}`;
+      throw new ValidationError(
+        `Finished Good ${codeStr} is required for planning but its BOM contains no components.`
+      );
     }
   }
 }
