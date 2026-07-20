@@ -126,17 +126,6 @@ function traverseBom(context) {
       );
     }
 
-    // Defensive check for quantity multiplier
-    if (
-      typeof childLine.qtyPerParent !== "number" ||
-      isNaN(childLine.qtyPerParent) ||
-      childLine.qtyPerParent <= 0
-    ) {
-      throw new ValidationError(
-        `BOM line ${childLine.bomLineId || i} must have a qtyPerParent greater than zero.`
-      );
-    }
-
     const requiredQuantity = currentQuantity * childLine.qtyPerParent;
     const childPath = [...path, childItemId];
 

@@ -270,20 +270,15 @@ test("explodeBom - throws ValidationError on cyclic BOM dependency", () => {
   );
 });
 
-test("explodeBom - throws ValidationError when qtyPerParent is zero, negative, or invalid", () => {
-  const invalidLines = [
-    { bomLineId: 1, parentItemId: FG_ITEM_ID, childItemId: RM_ITEM_ID, qtyPerParent: 0 },
-    { bomLineId: 2, parentItemId: FG_ITEM_ID, childItemId: RM_ITEM_ID, qtyPerParent: -2 },
-    { bomLineId: 3, parentItemId: FG_ITEM_ID, childItemId: RM_ITEM_ID, qtyPerParent: "invalid" },
+test("explodeBom - computes requirement quantity assuming pre-validated positive qtyPerParent multipliers", () => {
+  const bomLines = [
+    { bomLineId: 1, parentItemId: FG_ITEM_ID, childItemId: RM_ITEM_ID, qtyPerParent: 4 },
   ];
+  const planningData = createPlanningData([createDemandLine({ quantity: 5 })], bomLines);
+  const results = explodeBom(planningData);
 
-  for (const line of invalidLines) {
-    const planningData = createPlanningData([createDemandLine()], [line]);
-    assert.throws(
-      () => explodeBom(planningData),
-      (err) => err instanceof ValidationError && err.message.includes("qtyPerParent greater than zero")
-    );
-  }
+  assert.equal(results.length, 1);
+  assert.equal(results[0].requiredQuantity, 20);
 });
 
 // ============================================================================
