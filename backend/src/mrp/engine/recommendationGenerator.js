@@ -1,3 +1,5 @@
+const { PROCUREMENT_TYPES } = require("../constants/procurement.constants");
+
 /** @typedef {import("../types/mrp.types").AllocatedRequirement} AllocatedRequirement */
 /** @typedef {import("../types/mrp.types").Item} Item */
 /** @typedef {import("../types/mrp.types").ItemId} ItemId */
@@ -5,12 +7,12 @@
 /** @typedef {import("../types/mrp.types").Recommendation} Recommendation */
 
 /**
- * Converts Item Master records into an in-memory Map<ItemId, ProcurementType> for O(1) lookup.
+ * Converts Item Master Planning DTO records into an in-memory Map<ItemId, ProcurementType> for O(1) lookup.
  *
- * **Architectural & Boundary Assumptions**:
- * - Procurement Type Resolution: Reads each item's configured `procurementType` ("PURCHASE" vs "PRODUCTION").
- * - Upstream Validation: Planning validation (`planning.validation.js`) guarantees item master integrity prior to engine execution.
- * - Defensive Default: If an item's `procurementType` is unconfigured or invalid, defaults to "PURCHASE" to prevent planning engine halts.
+ * **Architectural & Boundary Guarantees**:
+ * - Procurement Type Resolution: Reads each item's Planning DTO `procurementType` ("PURCHASE" vs "PRODUCTION").
+ * - Zero Category Inspection: Does NOT inspect or require category or itemType.
+ * - Upstream Validation: Planning validation (`planning.validation.js`) guarantees item master DTO integrity prior to engine execution.
  *
  * @param {Item[]} [items] Array of item master domain records
  * @returns {Map<ItemId, ProcurementType>} Map tracking procurement strategy per item ID
@@ -24,7 +26,9 @@ function createProcurementLookup(items) {
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     if (item && typeof item.itemId === "number") {
-      const type = item.procurementType === "PRODUCTION" ? "PRODUCTION" : "PURCHASE";
+      const type = item.procurementType === PROCUREMENT_TYPES.PRODUCTION
+        ? PROCUREMENT_TYPES.PRODUCTION
+        : PROCUREMENT_TYPES.PURCHASE;
       itemMap.set(item.itemId, type);
     }
   }
@@ -43,7 +47,7 @@ function determineRecommendationType(itemMap, itemId) {
   if (itemMap && itemMap.has(itemId)) {
     return itemMap.get(itemId);
   }
-  return "PURCHASE";
+  return PROCUREMENT_TYPES.PURCHASE;
 }
 
 /**

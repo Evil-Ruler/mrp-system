@@ -64,15 +64,12 @@
  */
 
 /**
- * Item Master record containing inventory catalog and procurement configuration.
+ * Item Master Planning DTO consumed by planning validation and MRP engine.
  *
  * @typedef {Object} Item
- * @property {ItemId} itemId Item master record identifier
+ * @property {ItemId} itemId Unique numerical identifier for item master record
  * @property {string} itemCode Unique alphanumeric SKU item code
- * @property {string} itemType Item category classification (e.g. FINISHED_GOOD, SUB_ASSEMBLY, RAW_MATERIAL)
- * @property {ProcurementType} [procurementType] Fulfillment strategy ("PURCHASE" vs "PRODUCTION").
- *                                                Derived by the repository mapper from the item category
- *                                                when no explicit value is persisted (see mrp.repository.js).
+ * @property {ProcurementType} procurementType Policy strategy ("PURCHASE" or "PRODUCTION")
  * @property {UnitOfMeasure} baseUom Standard stocking unit of measure
  */
 

@@ -21,67 +21,47 @@ The engine preserves **full end-to-end demand lineage** — every recommendation
 
 ## 2. Architecture & Request Flow
 
-The module implements a strictly layered architecture where each layer depends only on the layer directly below it. Business logic never leaks into transport or persistence layers.
+The module implements a strictly layered Clean Architecture where each layer has a single responsibility. Business logic never leaks into transport or persistence layers.
 
 ```
-                  Client Request (HTTP)
-                         │
-                         ▼
-                ┌─────────────────┐
-                │  Route Layer    │  mrp.routes.js
-                │  (Express)      │  URL → Controller mapping
-                └────────┬────────┘
-                         │
-                         ▼
-                ┌─────────────────┐
-                │  HTTP Validation│  mrp.validation.js
-                │                 │  Query param parsing & normalization
-                └────────┬────────┘
-                         │
-                         ▼
-                ┌─────────────────┐
-                │  Controller     │  mrp.controller.js
-                │                 │  req/res adapter, error mapping
-                └────────┬────────┘
-                         │
-                         ▼
-                ┌─────────────────┐
-                │  Service Layer  │  mrp.service.js
-                │  (Orchestrator) │  Pipeline sequencing & summary
-                └────────┬────────┘
-                         │
-          ┌──────────────┼──────────────┐
-          ▼              ▼              ▼
-   ┌────────────┐ ┌────────────┐ ┌────────────┐
-   │ Planning   │ │ Engine     │ │ Repository │
-   │ Validation │ │ Pipeline   │ │ Layer      │
-   │            │ │            │ │            │
-   │ planning.  │ │ Stage 1-4  │ │ mrp.       │
-   │ validation │ │ (Pure Fn)  │ │ repository │
-   └────────────┘ └────────────┘ └─────┬──────┘
-                                       │
-                                       ▼
-                              ┌─────────────────┐
-                              │  Prisma ORM     │
-                              │                 │
-                              │  PostgreSQL     │
-                              └─────────────────┘
+Database
+      │
+      ▼
+Repository (mrp.repository.js)
+      │
+      ├───────────────┐
+      │               │
+      │               ▼
+      │      validateProcurementType()
+      │
+      ▼
+resolveProcurementTypeFromCategory() (procurementTypeResolver.js)
+      │
+      ▼
+Planning DTO ({ itemId, itemCode, baseUom, procurementType })
+      │
+      ▼
+Planning Validation (planning.validation.js)
+      │
+      ▼
+MRP Engine (recommendationGenerator.js)
 ```
 
 ### Layer Responsibilities
 
-| Layer | File | Responsibility |
+| Layer | Module / File | Responsibility |
 |---|---|---|
 | **Routes** | `routes/mrp.routes.js` | Maps HTTP verbs + paths to controller methods. Contains zero logic. |
 | **HTTP Validation** | `validation/mrp.validation.js` | Validates and normalizes HTTP query parameters (`salesOrderIds`, ISO-8601 dates, date range invariants). |
 | **Controller** | `controllers/mrp.controller.js` | Thin HTTP adapter. Reads query params, invokes service, formats JSON responses, maps domain errors to HTTP status codes. |
 | **Service** | `services/mrp.service.js` | Orchestrates the 6-stage planning pipeline. Loads data from repository, invokes validation and engine stages in sequence, builds planning summary. |
-| **Planning Validation** | `validation/planning.validation.js` | Domain-level invariant validation (item master integrity, demand completeness, BOM structural correctness, deterministic demand sorting). |
-| **Engine** | `engine/*.js` | Four pure-function pipeline stages: BOM Explosion, Inventory Netting, Supply Allocation, Recommendation Generation. |
-| **Repository** | `repositories/mrp.repository.js` | Prisma ORM data access. Maps database entities to domain objects via pure mapper functions. Never owns business rules. |
+| **Repository** | `repositories/mrp.repository.js` | Prisma ORM data access, persistence integrity validation (throwing `DataAccessError` on corrupted persistence data), invokes `ProcurementTypeResolver`, and emits pure Planning DTOs. |
+| **Policy Resolver** | `policies/procurementTypeResolver.js` | Pure function resolving legacy item categories to domain `procurementType` (`PURCHASE` vs `PRODUCTION`) using `CATEGORY_TO_PROCUREMENT`. Contains zero persistence or validation logic. |
+| **Planning Validation** | `validation/planning.validation.js` | Domain-level invariant validation on Planning DTOs (validating `procurementType` via `VALID_PROCUREMENT_TYPES.has()`, item master integrity, demand completeness, BOM structural correctness). |
+| **Engine** | `engine/*.js` | Four pure-function pipeline stages: BOM Explosion, Inventory Netting, Supply Allocation, Recommendation Generation. Never inspects item categories or `itemType`. |
 | **Types** | `types/mrp.types.js` | Centralized JSDoc domain type contracts consumed by all pipeline stages. |
 | **Errors** | `errors/mrp.errors.js` | Domain error classes (`ValidationError`, `DataAccessError`). |
-| **Constants** | `constants/planning.constants.js` | Immutable planning configuration (`ALLOWED_DEMAND_STATUSES`). |
+| **Constants** | `constants/procurement.constants.js`, `constants/procurementPolicy.constants.js`, `constants/planning.constants.js` | Immutable planning enums, valid sets (`VALID_PROCUREMENT_TYPES`), and legacy category compatibility matrix (`CATEGORY_TO_PROCUREMENT`). |
 
 ### Key Architectural Invariants
 

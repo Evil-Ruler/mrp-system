@@ -261,3 +261,28 @@ test("generateRecommendations - handles 1000+ allocated requirements determinist
   assert.deepStrictEqual(run1, run2);
   assertRecommendationInvariants(run1, allocated);
 });
+
+// ============================================================================
+// 5. REGRESSION & CATEGORY ISOLATION TESTS
+// ============================================================================
+
+test("generateRecommendations - operates on narrow Planning DTOs without category or itemType fields", () => {
+  const allocated = [
+    createAllocatedRequirement({ itemId: 100, remainingShortage: 20 }),
+    createAllocatedRequirement({ itemId: 200, remainingShortage: 30 }),
+  ];
+
+  // Item objects strictly containing NO category or itemType property
+  const items = [
+    { itemId: 100, itemCode: "FG-100", baseUom: "PCS", procurementType: "PRODUCTION" },
+    { itemId: 200, itemCode: "RM-200", baseUom: "KG", procurementType: "PURCHASE" },
+  ];
+
+  const results = generateRecommendations(allocated, items);
+
+  assert.equal(results.length, 2);
+  assert.equal(results[0].recommendationType, "PRODUCTION");
+  assert.equal(results[1].recommendationType, "PURCHASE");
+  assert.equal("category" in items[0], false);
+  assert.equal("itemType" in items[0], false);
+});

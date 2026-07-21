@@ -1,4 +1,5 @@
 const { ValidationError } = require("../errors/mrp.errors");
+const { VALID_PROCUREMENT_TYPES } = require("../constants/procurement.constants");
 
 /** @typedef {import("../types/mrp.types").Demand} Demand */
 /** @typedef {import("../types/mrp.types").Item} Item */
@@ -7,6 +8,12 @@ const { ValidationError } = require("../errors/mrp.errors");
 
 /**
  * Validates item master records.
+ *
+ * Enforces Planning DTO invariants:
+ * - itemId: required
+ * - itemCode: required non-empty string
+ * - baseUom: required non-empty string
+ * - procurementType: required and must be present in VALID_PROCUREMENT_TYPES ("PURCHASE" or "PRODUCTION")
  *
  * @param {Item[]} items
  * @throws {ValidationError}
@@ -30,12 +37,23 @@ function validateItems(items) {
       throw new ValidationError(`Item ${item.itemId} is missing a valid itemCode.`);
     }
 
-    if (typeof item.itemType !== "string" || item.itemType.trim() === "") {
-      throw new ValidationError(`Item ${item.itemId} is missing a valid itemType.`);
-    }
-
     if (typeof item.baseUom !== "string" || item.baseUom.trim() === "") {
       throw new ValidationError(`Item ${item.itemId} is missing a valid baseUom.`);
+    }
+
+    if (
+      item.procurementType === undefined ||
+      item.procurementType === null ||
+      typeof item.procurementType !== "string" ||
+      item.procurementType.trim() === ""
+    ) {
+      throw new ValidationError(`Item ${item.itemId} is missing a valid procurementType.`);
+    }
+
+    if (!VALID_PROCUREMENT_TYPES.has(item.procurementType)) {
+      throw new ValidationError(
+        `Item ${item.itemId} has invalid procurementType "${item.procurementType}". Must be "PURCHASE" or "PRODUCTION".`
+      );
     }
   }
 }

@@ -100,8 +100,8 @@ test("returns validated planning data for eligible demand (getPlanningData)", as
   repository.getItems = async () => {
     getItemsCalled = true;
     return [
-      { itemId: 101, itemCode: "FG-101", itemType: "FINISHED_GOOD", baseUom: "PCS" },
-      { itemId: 201, itemCode: "RM-201", itemType: "RAW_MATERIAL", baseUom: "KG" },
+      { itemId: 101, itemCode: "FG-101", procurementType: "PRODUCTION", baseUom: "PCS" },
+      { itemId: 201, itemCode: "RM-201", procurementType: "PURCHASE", baseUom: "KG" },
     ];
   };
 
@@ -149,7 +149,7 @@ test("throws ValidationError when a demanded finished good has no BOM (getPlanni
   ];
 
   repository.getItems = async () => [
-    { itemId: 999, itemCode: "FG-999", itemType: "FINISHED_GOOD", baseUom: "PCS" },
+    { itemId: 999, itemCode: "FG-999", procurementType: "PRODUCTION", baseUom: "PCS" },
   ];
 
   repository.getBomData = async () => ({
@@ -293,7 +293,7 @@ test("runPlanning - propagates repository DataAccessError from secondary loaders
   repository.getDemandOrderLines = async () => [
     { demandId: "SO-1:1", salesOrderId: "SO-1", salesOrderLineId: 1, itemId: 101, quantity: 10, requiredDate: new Date("2026-08-10"), uom: "PCS" },
   ];
-  repository.getItems = async () => [{ itemId: 101, itemCode: "FG-101", itemType: "FINISHED_GOOD", baseUom: "PCS" }];
+  repository.getItems = async () => [{ itemId: 101, itemCode: "FG-101", procurementType: "PRODUCTION", baseUom: "PCS" }];
   repository.getBomData = async () => ({ headers: [{ bomHeaderId: "BOM-101", parentItemId: 101 }], lines: [] });
   repository.getInventory = async () => { throw dbError; };
   // _loadPlanningData starts all independent loaders with Promise.all. Keep the

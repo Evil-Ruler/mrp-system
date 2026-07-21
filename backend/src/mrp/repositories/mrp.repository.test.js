@@ -83,7 +83,7 @@ test("maps BOM headers and lines to domain objects", async () => {
   });
 });
 
-test("maps item records to domain objects", async () => {
+test("maps item records to narrow domain objects", async () => {
   prisma.item.findMany = async () => [
     { itemId: 1, itemCode: "FG-100", category: "FINISHED_GOOD", uom: "PCS" },
   ];
@@ -94,19 +94,20 @@ test("maps item records to domain objects", async () => {
     {
       itemId: 1,
       itemCode: "FG-100",
-      itemType: "FINISHED_GOOD",
       baseUom: "PCS",
       procurementType: "PRODUCTION",
     },
   ]);
 });
 
-test("derives procurementType from category when no explicit value is present", async () => {
+test("derives procurementType from category via resolver when no explicit value is present", async () => {
   prisma.item.findMany = async () => [
     { itemId: 1, itemCode: "FG-1", category: "Finished Good", uom: "PCS" },
     { itemId: 2, itemCode: "RM-1", category: "Raw Material", uom: "KG" },
     { itemId: 3, itemCode: "HW-1", category: "Hardware", uom: "PCS" },
     { itemId: 4, itemCode: "CN-1", category: "Consumable", uom: "L" },
+    { itemId: 5, itemCode: "SA-1", category: "Sub Assembly", uom: "PCS" },
+    { itemId: 6, itemCode: "PSA-1", category: "Purchased Sub-Assembly", uom: "PCS" },
   ];
 
   const items = await repository.getItems();
@@ -115,11 +116,14 @@ test("derives procurementType from category when no explicit value is present", 
   assert.equal(items.find((i) => i.itemId === 2).procurementType, "PURCHASE");
   assert.equal(items.find((i) => i.itemId === 3).procurementType, "PURCHASE");
   assert.equal(items.find((i) => i.itemId === 4).procurementType, "PURCHASE");
+  assert.equal(items.find((i) => i.itemId === 5).procurementType, "PRODUCTION");
+  assert.equal(items.find((i) => i.itemId === 6).procurementType, "PURCHASE");
 });
 
-test("maps item records with explicit procurementType to domain objects", async () => {
+test("maps item records with explicit valid procurementType to domain objects", async () => {
   prisma.item.findMany = async () => [
     { itemId: 2, itemCode: "RM-200", category: "RAW_MATERIAL", procurementType: "PURCHASE", uom: "KG" },
+    { itemId: 3, itemCode: "SA-300", category: "RAW_MATERIAL", procurementType: "PRODUCTION", uom: "PCS" },
   ];
 
   const items = await repository.getItems();
@@ -128,11 +132,36 @@ test("maps item records with explicit procurementType to domain objects", async 
     {
       itemId: 2,
       itemCode: "RM-200",
-      itemType: "RAW_MATERIAL",
-      procurementType: "PURCHASE",
       baseUom: "KG",
+      procurementType: "PURCHASE",
+    },
+    {
+      itemId: 3,
+      itemCode: "SA-300",
+      baseUom: "PCS",
+      procurementType: "PRODUCTION",
     },
   ]);
+});
+
+test("throws DataAccessError when persisted item record has invalid explicit procurementType", async () => {
+  prisma.item.findMany = async () => [
+    { itemId: 10, itemCode: "ITEM-INVALID", category: "FINISHED_GOOD", procurementType: "INVALID_STRATEGY", uom: "PCS" },
+  ];
+
+  await assert.rejects(repository.getItems(), (err) => {
+    return err instanceof DataAccessError && err.message.includes("Invalid explicit procurementType");
+  });
+});
+
+test("throws DataAccessError when persisted item record has unknown category and missing procurementType", async () => {
+  prisma.item.findMany = async () => [
+    { itemId: 11, itemCode: "UNKNOWN-CAT", category: "UNSUPPORTED_CATEGORY", uom: "PCS" },
+  ];
+
+  await assert.rejects(repository.getItems(), (err) => {
+    return err instanceof DataAccessError && err.message.includes("unknown category");
+  });
 });
 
 test("maps inventory stock records to domain objects", async () => {

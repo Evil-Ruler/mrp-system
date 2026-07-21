@@ -11,8 +11,8 @@ const { ValidationError } = require("../errors/mrp.errors");
 
 test("validateItems - passes for valid item master list", () => {
   const items = [
-    { itemId: 1, itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "PCS" },
-    { itemId: 2, itemCode: "RM-001", itemType: "RAW_MATERIAL", baseUom: "KG" },
+    { itemId: 1, itemCode: "FG-001", baseUom: "PCS", procurementType: "PRODUCTION" },
+    { itemId: 2, itemCode: "RM-001", baseUom: "KG", procurementType: "PURCHASE" },
   ];
 
   assert.doesNotThrow(() => validateItems(items));
@@ -32,29 +32,46 @@ test("validateItems - throws ValidationError for null or undefined input", () =>
 
 test("validateItems - throws ValidationError for missing itemId", () => {
   assert.throws(
-    () => validateItems([{ itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "PCS" }]),
+    () => validateItems([{ itemCode: "FG-001", baseUom: "PCS", procurementType: "PRODUCTION" }]),
     (err) => err instanceof ValidationError && err.message.includes("missing itemId")
   );
 });
 
 test("validateItems - throws ValidationError for missing itemCode", () => {
   assert.throws(
-    () => validateItems([{ itemId: 1, itemCode: "", itemType: "FINISHED_GOOD", baseUom: "PCS" }]),
+    () => validateItems([{ itemId: 1, itemCode: "", baseUom: "PCS", procurementType: "PRODUCTION" }]),
     (err) => err instanceof ValidationError && err.message.includes("missing a valid itemCode")
-  );
-});
-
-test("validateItems - throws ValidationError for missing itemType", () => {
-  assert.throws(
-    () => validateItems([{ itemId: 1, itemCode: "FG-001", itemType: " ", baseUom: "PCS" }]),
-    (err) => err instanceof ValidationError && err.message.includes("missing a valid itemType")
   );
 });
 
 test("validateItems - throws ValidationError for missing baseUom", () => {
   assert.throws(
-    () => validateItems([{ itemId: 1, itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "" }]),
+    () => validateItems([{ itemId: 1, itemCode: "FG-001", baseUom: "", procurementType: "PRODUCTION" }]),
     (err) => err instanceof ValidationError && err.message.includes("missing a valid baseUom")
+  );
+});
+
+test("validateItems - throws ValidationError for missing procurementType", () => {
+  assert.throws(
+    () => validateItems([{ itemId: 1, itemCode: "FG-001", baseUom: "PCS" }]),
+    (err) => err instanceof ValidationError && err.message.includes("missing a valid procurementType")
+  );
+
+  assert.throws(
+    () => validateItems([{ itemId: 1, itemCode: "FG-001", baseUom: "PCS", procurementType: "" }]),
+    (err) => err instanceof ValidationError && err.message.includes("missing a valid procurementType")
+  );
+});
+
+test("validateItems - throws ValidationError for invalid procurementType", () => {
+  assert.throws(
+    () => validateItems([{ itemId: 1, itemCode: "FG-001", baseUom: "PCS", procurementType: "INVALID_TYPE" }]),
+    (err) => err instanceof ValidationError && err.message.includes("has invalid procurementType")
+  );
+
+  assert.throws(
+    () => validateItems([{ itemId: 1, itemCode: "FG-001", baseUom: "PCS", procurementType: "MAKE" }]),
+    (err) => err instanceof ValidationError && err.message.includes("has invalid procurementType")
   );
 });
 
@@ -114,8 +131,8 @@ test("validateDemand - throws ValidationError for non-positive quantity", () => 
 
 test("validateBom - passes when all demand finished goods have BOM, qtyPerParent > 0, and child items exist", () => {
   const items = [
-    { itemId: 100, itemCode: "FG-100", itemType: "FINISHED_GOOD", baseUom: "PCS" },
-    { itemId: 200, itemCode: "RM-200", itemType: "RAW_MATERIAL", baseUom: "KG" },
+    { itemId: 100, itemCode: "FG-100", baseUom: "PCS", procurementType: "PRODUCTION" },
+    { itemId: 200, itemCode: "RM-200", baseUom: "KG", procurementType: "PURCHASE" },
   ];
   const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
   const bom = {
@@ -147,7 +164,7 @@ test("validateBom - throws ValidationError for null or invalid BOM structure", (
 });
 
 test("validateBom - throws ValidationError if demanded finished good is missing a BOM", () => {
-  const items = [{ itemId: 100, itemCode: "FG-100", itemType: "FINISHED_GOOD", baseUom: "PCS" }];
+  const items = [{ itemId: 100, itemCode: "FG-100", baseUom: "PCS", procurementType: "PRODUCTION" }];
   const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
   const bom = { headers: [], lines: [] };
 
@@ -159,8 +176,8 @@ test("validateBom - throws ValidationError if demanded finished good is missing 
 
 test("validateBom - throws ValidationError if qtyPerParent <= 0", () => {
   const items = [
-    { itemId: 100, itemCode: "FG-100", itemType: "FINISHED_GOOD", baseUom: "PCS" },
-    { itemId: 200, itemCode: "RM-200", itemType: "RAW_MATERIAL", baseUom: "KG" },
+    { itemId: 100, itemCode: "FG-100", baseUom: "PCS", procurementType: "PRODUCTION" },
+    { itemId: 200, itemCode: "RM-200", baseUom: "KG", procurementType: "PURCHASE" },
   ];
   const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
   const bom = {
@@ -183,7 +200,7 @@ test("validateBom - throws ValidationError if qtyPerParent <= 0", () => {
 });
 
 test("validateBom - throws ValidationError if BOM child item does not exist in item master", () => {
-  const items = [{ itemId: 100, itemCode: "FG-100", itemType: "FINISHED_GOOD", baseUom: "PCS" }];
+  const items = [{ itemId: 100, itemCode: "FG-100", baseUom: "PCS", procurementType: "PRODUCTION" }];
   const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
   const bom = {
     headers: [{ bomHeaderId: "BOM-100", parentItemId: 100 }],
@@ -224,14 +241,10 @@ test("sortDemand - sorts demand by requiredDate, salesOrderId, and salesOrderLin
   assert.equal(sorted[2].salesOrderId, "SO-002");
 });
 
-// ============================================================================
-// NEW TESTS: BOM AMBIGUITY, EMPTY BOMS, ORPHAN HEADERS/LINES, NON-FINITE NUMBERS
-// ============================================================================
-
 test("validateBom - throws ValidationError when multiple BOM headers exist for the same finished good", () => {
   const items = [
-    { itemId: 100, itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "PCS" },
-    { itemId: 200, itemCode: "RM-200", itemType: "RAW_MATERIAL", baseUom: "KG" },
+    { itemId: 100, itemCode: "FG-001", baseUom: "PCS", procurementType: "PRODUCTION" },
+    { itemId: 200, itemCode: "RM-200", baseUom: "KG", procurementType: "PURCHASE" },
   ];
   const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
   const bom = {
@@ -254,7 +267,7 @@ test("validateBom - throws ValidationError when multiple BOM headers exist for t
 });
 
 test("validateBom - throws ValidationError when demanded finished good has an empty BOM (0 components)", () => {
-  const items = [{ itemId: 100, itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "PCS" }];
+  const items = [{ itemId: 100, itemCode: "FG-001", baseUom: "PCS", procurementType: "PRODUCTION" }];
   const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
   const bom = {
     headers: [{ bomHeaderId: "BOM-100", parentItemId: 100 }],
@@ -271,20 +284,18 @@ test("validateBom - throws ValidationError when demanded finished good has an em
 
 test("validateBom - succeeds when unused finished good has an empty BOM but demanded finished good has valid BOM", () => {
   const items = [
-    { itemId: 100, itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "PCS" },
-    { itemId: 101, itemCode: "FG-002", itemType: "FINISHED_GOOD", baseUom: "PCS" },
-    { itemId: 200, itemCode: "RM-200", itemType: "RAW_MATERIAL", baseUom: "KG" },
+    { itemId: 100, itemCode: "FG-001", baseUom: "PCS", procurementType: "PRODUCTION" },
+    { itemId: 101, itemCode: "FG-002", baseUom: "PCS", procurementType: "PRODUCTION" },
+    { itemId: 200, itemCode: "RM-200", baseUom: "KG", procurementType: "PURCHASE" },
   ];
-  // Only FG-001 is demanded
   const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
   const bom = {
     headers: [
       { bomHeaderId: "BOM-100", parentItemId: 100 },
-      { bomHeaderId: "BOM-101", parentItemId: 101 }, // Unused FG-002
+      { bomHeaderId: "BOM-101", parentItemId: 101 },
     ],
     lines: [
       { bomLineId: 1, bomHeaderId: "BOM-100", parentItemId: 100, childItemId: 200, qtyPerParent: 2 },
-      // BOM-101 has 0 lines, but FG-002 is not demanded!
     ],
   };
 
@@ -293,8 +304,8 @@ test("validateBom - succeeds when unused finished good has an empty BOM but dema
 
 test("validateBom - does not traverse into a sub-assembly BOM", () => {
   const items = [
-    { itemId: 100, itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "PCS" },
-    { itemId: 200, itemCode: "SA-200", itemType: "SUB_ASSEMBLY", baseUom: "PCS" },
+    { itemId: 100, itemCode: "FG-001", baseUom: "PCS", procurementType: "PRODUCTION" },
+    { itemId: 200, itemCode: "SA-200", baseUom: "PCS", procurementType: "PRODUCTION" },
   ];
   const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
   const bom = {
@@ -312,8 +323,8 @@ test("validateBom - does not traverse into a sub-assembly BOM", () => {
 
 test("validateBom - throws ValidationError for orphan BOM line referencing non-existent BOM header", () => {
   const items = [
-    { itemId: 100, itemCode: "FG-001", itemType: "FINISHED_GOOD", baseUom: "PCS" },
-    { itemId: 200, itemCode: "RM-200", itemType: "RAW_MATERIAL", baseUom: "KG" },
+    { itemId: 100, itemCode: "FG-001", baseUom: "PCS", procurementType: "PRODUCTION" },
+    { itemId: 200, itemCode: "RM-200", baseUom: "KG", procurementType: "PURCHASE" },
   ];
   const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
   const bom = {
@@ -332,7 +343,7 @@ test("validateBom - throws ValidationError for orphan BOM line referencing non-e
 });
 
 test("validateBom - throws ValidationError when BOM header references non-existent parent item in item master", () => {
-  const items = [{ itemId: 200, itemCode: "RM-200", itemType: "RAW_MATERIAL", baseUom: "KG" }];
+  const items = [{ itemId: 200, itemCode: "RM-200", baseUom: "KG", procurementType: "PURCHASE" }];
   const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
   const bom = {
     headers: [{ bomHeaderId: "BOM-100", parentItemId: 100 }],
@@ -363,8 +374,8 @@ test("validateDemand & validateBom - rejects Infinity, -Infinity, and NaN quanti
   }
 
   const items = [
-    { itemId: 100, itemCode: "FG-100", itemType: "FINISHED_GOOD", baseUom: "PCS" },
-    { itemId: 200, itemCode: "RM-200", itemType: "RAW_MATERIAL", baseUom: "KG" },
+    { itemId: 100, itemCode: "FG-100", baseUom: "PCS", procurementType: "PRODUCTION" },
+    { itemId: 200, itemCode: "RM-200", baseUom: "KG", procurementType: "PURCHASE" },
   ];
   const demand = [{ itemId: 100, quantity: 5, requiredDate: new Date() }];
 

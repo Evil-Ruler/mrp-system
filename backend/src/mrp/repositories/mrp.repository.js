@@ -1,5 +1,7 @@
 const prisma = require("../../lib/prisma");
 const { DataAccessError } = require("../errors/mrp.errors");
+const { VALID_PROCUREMENT_TYPES } = require("../constants/procurement.constants");
+const { resolveProcurementTypeFromCategory } = require("../policies/procurementTypeResolver");
 
 /** @typedef {import("../types/mrp.types").Demand} Demand */
 /** @typedef {import("../types/mrp.types").BomHeader} BomHeader */
@@ -83,43 +85,47 @@ function toBomLineDomain(header, line) {
 }
 
 /**
- * Derives the domain procurement strategy from the persisted item category.
- *
- * The Phase 3 schema has no dedicated `procurement_type` column; the make-vs-buy
- * strategy is implied by the item `category` ("Finished Good"/"Sub Assembly" are
- * produced in-house; "Raw Material"/"Hardware"/"Consumable" are purchased).
- * Translating that persisted taxonomy into the domain `procurementType` field is a
- * persistence->domain mapping concern, so it lives in the repository mapper and the
- * pure planning engine remains unchanged.
- *
- * @param {string} category Persisted item category
- * @returns {"PURCHASE"|"PRODUCTION"}
- */
-function deriveProcurementType(category) {
-  const normalized = String(category || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
-  if (normalized === "FINISHED_GOOD" || normalized === "SUB_ASSEMBLY") {
-    return "PRODUCTION";
-  }
-  return "PURCHASE";
-}
-
-/**
  * Pure domain mapper for Item Master records.
- * Maps the database Item entity to a domain Item object. Honors an explicit
- * `procurementType` when present (forward-compatible with a future column) and
- * otherwise derives it deterministically from the item category.
+ *
+ * Enforces persistence integrity:
+ * 1. If explicit `procurementType` is present, validates it against `VALID_PROCUREMENT_TYPES`.
+ *    Throws `DataAccessError` if invalid.
+ * 2. If explicit `procurementType` is missing, invokes `resolveProcurementTypeFromCategory(item.category)`.
+ *    Throws `DataAccessError` if category is unknown or unresolvable.
+ * 3. Returns a clean, narrow Planning DTO ({ itemId, itemCode, baseUom, procurementType }).
+ *
+ * @param {Object} item Persisted item entity
+ * @returns {Item} Pure Planning DTO
+ * @throws {DataAccessError} If explicit procurementType or category resolution fails
  */
 function toItemDomain(item) {
-  const explicit = item.procurementType;
+  let procurementType;
+
+  if (item.procurementType !== undefined && item.procurementType !== null && String(item.procurementType).trim() !== "") {
+    const explicitNorm = String(item.procurementType).trim().toUpperCase();
+    if (VALID_PROCUREMENT_TYPES.has(explicitNorm)) {
+      procurementType = explicitNorm;
+    } else {
+      throw new DataAccessError(
+        `Invalid explicit procurementType "${item.procurementType}" for item ${item.itemId || item.itemCode || "record"}.`
+      );
+    }
+  } else {
+    const resolved = resolveProcurementTypeFromCategory(item.category);
+    if (resolved !== null) {
+      procurementType = resolved;
+    } else {
+      throw new DataAccessError(
+        `Item ${item.itemId || item.itemCode || "record"} has unknown category "${item.category}" and no explicit procurementType.`
+      );
+    }
+  }
+
   return {
     itemId: item.itemId,
     itemCode: item.itemCode,
-    itemType: item.category,
-    baseUom: item.uom,
-    procurementType:
-      explicit === "PRODUCTION" || explicit === "PURCHASE"
-        ? explicit
-        : deriveProcurementType(item.category),
+    baseUom: item.uom || item.baseUom,
+    procurementType,
   };
 }
 
@@ -285,6 +291,9 @@ class MRPRepository {
 
       return items.map(toItemDomain);
     } catch (error) {
+      if (error instanceof DataAccessError) {
+        throw error;
+      }
       throw new DataAccessError("Failed to load item master records for MRP.", error);
     }
   }
