@@ -156,6 +156,7 @@ test("maps open purchase order lines to supply records", async () => {
   if (!prisma.purchaseOrderLine) prisma.purchaseOrderLine = {};
   prisma.purchaseOrderLine.findMany = async () => [
     {
+      purchaseOrderLineId: 101,
       purchaseOrderId: "PO-10",
       materialId: 301,
       quantity: 50,
@@ -168,6 +169,7 @@ test("maps open purchase order lines to supply records", async () => {
   assert.deepEqual(poList, [
     {
       purchaseOrderId: "PO-10",
+      purchaseOrderLineId: 101,
       itemId: 301,
       openQuantity: 50,
       expectedDate: new Date("2026-08-01"),

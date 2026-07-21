@@ -122,6 +122,7 @@ function toInventoryDomain(item) {
 function toPurchaseSupplyDomain(line) {
   return {
     purchaseOrderId: line.purchaseOrderId,
+    purchaseOrderLineId: line.purchaseOrderLineId,
     itemId: line.materialId,
     openQuantity: line.quantity,
     expectedDate: line.purchaseOrder.orderDate,
