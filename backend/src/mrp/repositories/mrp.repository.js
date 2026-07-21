@@ -108,6 +108,8 @@ function toInventoryDomain(item) {
   return {
     itemId: item.itemId,
     availableQuantity: item.currentStock || 0,
+    onHandQuantity: item.currentStock || 0,
+    reorderLevel: item.reorderLevel ?? 0,
   };
 }
 
@@ -279,6 +281,7 @@ class MRPRepository {
         select: {
           itemId: true,
           currentStock: true,
+          reorderLevel: true,
         },
       });
 

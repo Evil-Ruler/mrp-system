@@ -120,7 +120,7 @@ test("maps item records with explicit procurementType to domain objects", async 
 
 test("maps inventory stock records to domain objects", async () => {
   prisma.item.findMany = async () => [
-    { itemId: 501, currentStock: 150 },
+    { itemId: 501, currentStock: 150, reorderLevel: 20 },
   ];
 
   const inventory = await repository.getInventory();
@@ -129,13 +129,15 @@ test("maps inventory stock records to domain objects", async () => {
     {
       itemId: 501,
       availableQuantity: 150,
+      onHandQuantity: 150,
+      reorderLevel: 20,
     },
   ]);
 });
 
-test("maps null currentStock to 0 availableQuantity for inventory", async () => {
+test("maps null currentStock and reorderLevel to 0 fallbacks for inventory", async () => {
   prisma.item.findMany = async () => [
-    { itemId: 502, currentStock: null },
+    { itemId: 502, currentStock: null, reorderLevel: null },
   ];
 
   const inventory = await repository.getInventory();
@@ -144,6 +146,8 @@ test("maps null currentStock to 0 availableQuantity for inventory", async () => 
     {
       itemId: 502,
       availableQuantity: 0,
+      onHandQuantity: 0,
+      reorderLevel: 0,
     },
   ]);
 });

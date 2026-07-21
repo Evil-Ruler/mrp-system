@@ -4,6 +4,8 @@
  * @typedef {Object} InventoryRecord
  * @property {number} itemId
  * @property {number} availableQuantity
+ * @property {number} [onHandQuantity] Physical on-hand stock balance
+ * @property {number} [reorderLevel] Minimum reorder level threshold
  */
 
 /**
