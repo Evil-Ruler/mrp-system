@@ -7,6 +7,7 @@ const {
   sortDemand,
 } = require("../validation/planning.validation");
 const { explodeBom } = require("../engine/bomExplosion");
+const { createInventorySnapshot } = require("../engine/inventorySnapshot");
 const { calculateInventoryNetting } = require("../engine/inventoryNetting");
 const { allocateSupply } = require("../engine/supplyAllocation");
 const { generateRecommendations } = require("../engine/recommendationGenerator");
@@ -150,8 +151,9 @@ class MRPService {
       items,
     });
 
-    // Step 4: Inventory Netting (Net Requirements)
-    const netRequirements = calculateInventoryNetting(explodedRequirements, inventory);
+    // Step 4: Inventory Snapshot Creation & Inventory Netting (Net Requirements)
+    const inventorySnapshot = createInventorySnapshot(inventory);
+    const netRequirements = calculateInventoryNetting(explodedRequirements, inventorySnapshot);
 
     // Step 5: Supply Allocation (Allocated Requirements)
     const allocatedRequirements = allocateSupply(netRequirements, purchaseOrders, productionOrders);
