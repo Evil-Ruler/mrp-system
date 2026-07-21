@@ -146,9 +146,9 @@ src/mrp/
 │
 ├── mrp.e2e.test.js                             # End-to-end pipeline tests
 │
-└── algorithms/                                 # Legacy stubs (superseded by engine/)
-    ├── bomExplosion.js
-    ├── mrpCalculator.js
+└── algorithms/                                 # Deprecated no-op stubs, superseded by engine/.
+    ├── bomExplosion.js                          #   No longer referenced anywhere (removed from
+    ├── mrpCalculator.js                         #   index.js); slated for deletion via `git rm`.
     └── shortageCalculator.js
 ```
 
@@ -178,8 +178,9 @@ runPlanning(filters)
     ├── Stage 1: BOM Explosion
     │   └── explodeBom({ demand, bom, items })  → ExplodedRequirement[]
     │
-    ├── Stage 2: Inventory Netting
-    │   └── calculateInventoryNetting(exploded, inventory)  → NetRequirement[]
+    ├── Stage 2: Inventory Snapshot & Netting
+    │   ├── createInventorySnapshot(inventory)              → InventoryRecord[]
+    │   └── calculateInventoryNetting(exploded, snapshot)   → NetRequirement[]
     │
     ├── Stage 3: Supply Allocation
     │   └── allocateSupply(netReqs, purchaseOrders, productionOrders)  → AllocatedRequirement[]
@@ -241,8 +242,8 @@ Converts remaining unfulfilled shortages into actionable PURCHASE or PRODUCTION 
 - **Output**: `Recommendation[]` — one per unfulfilled demand line
 - **Key behaviors**:
   - Recommendations generated ONLY when `remainingShortage > 0`
-  - Procurement type resolved from item master (`procurementType` field)
-  - Default fallback to `"PURCHASE"` when procurement type is unconfigured
+  - Procurement type resolved from the item's `procurementType`, which the repository derives from the item `category` (Finished Good / Sub Assembly → PRODUCTION; Raw Material / Hardware / Consumable → PURCHASE)
+  - Default fallback to `"PURCHASE"` when procurement type cannot be determined
   - Intentionally unaggregated: one recommendation per demand line for full lineage
 
 ---
@@ -460,6 +461,7 @@ The repository maps database columns to domain fields via pure mapper functions:
 | Database Column | Domain Field | Notes |
 |---|---|---|
 | `Item.category` | `Item.itemType` | Category classification mapped to domain type name |
+| `Item.category` | `Item.procurementType` | Derived: Finished Good / Sub Assembly → `PRODUCTION`; otherwise → `PURCHASE` (no dedicated column in Phase 3 schema) |
 | `SalesOrderLine.productId` | `Demand.itemId` | Product FK mapped to item identifier |
 | `SalesOrder.orderDate` | `Demand.requiredDate` | Order date used as demand required date |
 | `Item.currentStock` | `InventoryRecord.availableQuantity` | Clamped to ≥ 0 by inventory netting |
@@ -502,7 +504,7 @@ The test suite uses Node.js built-in `node:test` runner with `node:assert/strict
 ```
                     ┌───────────────────┐
                     │   E2E Pipeline    │  mrp.e2e.test.js
-                    │   15 scenarios    │
+                    │   18 scenarios    │
                     └─────────┬─────────┘
                   ┌───────────┴───────────┐
                   │   System Integration  │  tests/mrp.integration.test.js
@@ -526,9 +528,10 @@ The test suite uses Node.js built-in `node:test` runner with `node:assert/strict
 | **Repository** | `repositories/mrp.repository.test.js` | 1 file | Data access and domain mapping tests |
 | **HTTP API** | `tests/mrp.api.test.js` | 1 file | Supertest HTTP endpoint integration tests |
 | **System Integration** | `tests/mrp.integration.test.js` | 1 file | Cross-layer integration scenarios |
-| **E2E Pipeline** | `mrp.e2e.test.js` | 1 file | Full pipeline execution with 21 production scenarios |
+| **E2E Pipeline** | `mrp.e2e.test.js` | 1 file | Full pipeline execution with 18 production scenarios |
 
-**Total**: 158 passing tests.
+**Total**: 167 passing tests (Node.js built-in `node:test` runner + `node:assert/strict`; `supertest` for HTTP).
+The suite fully isolates repository calls and does not require a running PostgreSQL instance.
 
 ### Running Tests
 
@@ -585,7 +588,17 @@ npm run dev
 
 ---
 
-## 12. Extension Guidelines
+## 12. Migration Safety and Known Limitations
+
+The checked-in Prisma migration history is safe for fresh installations, empty development databases, and fresh CI databases. The Phase 3 index migration (`20260721000000_add_mrp_query_indexes`) is additive and does not alter planning behavior.
+
+The earlier `20260704111810_add_remaining_tables` migration changes `items.item_id` from `TEXT` to `INTEGER` by dropping and recreating the column. It must not be applied directly to a populated database that has only the initial migration: existing item identifiers cannot be preserved by that historical migration. Migration history is intentionally immutable; use an operator-reviewed, one-time upgrade plan for that legacy state. See [`prisma/MIGRATION_NOTES.md`](../../prisma/MIGRATION_NOTES.md).
+
+The current Phase 3 time-phasing model uses the persisted order/start dates available in the schema. Dedicated demand due dates, purchase expected-delivery dates, and production completion dates are future data-model enhancements, not part of this Phase 3 implementation.
+
+---
+
+## 13. Extension Guidelines
 
 1. **Never leak database objects to engine functions**: Engine stages must receive clean domain objects, never Prisma model instances.
 2. **Never access `req`/`res` below the controller**: Services and repositories must remain transport-independent.
@@ -596,7 +609,7 @@ npm run dev
 
 ---
 
-## 13. Dependencies
+## 14. Dependencies
 
 | Package | Version | Purpose |
 |---|---|---|

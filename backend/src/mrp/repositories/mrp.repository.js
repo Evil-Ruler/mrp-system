@@ -83,22 +83,44 @@ function toBomLineDomain(header, line) {
 }
 
 /**
+ * Derives the domain procurement strategy from the persisted item category.
+ *
+ * The Phase 3 schema has no dedicated `procurement_type` column; the make-vs-buy
+ * strategy is implied by the item `category` ("Finished Good"/"Sub Assembly" are
+ * produced in-house; "Raw Material"/"Hardware"/"Consumable" are purchased).
+ * Translating that persisted taxonomy into the domain `procurementType` field is a
+ * persistence->domain mapping concern, so it lives in the repository mapper and the
+ * pure planning engine remains unchanged.
+ *
+ * @param {string} category Persisted item category
+ * @returns {"PURCHASE"|"PRODUCTION"}
+ */
+function deriveProcurementType(category) {
+  const normalized = String(category || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (normalized === "FINISHED_GOOD" || normalized === "SUB_ASSEMBLY") {
+    return "PRODUCTION";
+  }
+  return "PURCHASE";
+}
+
+/**
  * Pure domain mapper for Item Master records.
- * Maps database Item entity to domain Item object without inferring business rules.
+ * Maps the database Item entity to a domain Item object. Honors an explicit
+ * `procurementType` when present (forward-compatible with a future column) and
+ * otherwise derives it deterministically from the item category.
  */
 function toItemDomain(item) {
-  const domainItem = {
+  const explicit = item.procurementType;
+  return {
     itemId: item.itemId,
     itemCode: item.itemCode,
     itemType: item.category,
     baseUom: item.uom,
+    procurementType:
+      explicit === "PRODUCTION" || explicit === "PURCHASE"
+        ? explicit
+        : deriveProcurementType(item.category),
   };
-
-  if (typeof item.procurementType === "string") {
-    domainItem.procurementType = item.procurementType;
-  }
-
-  return domainItem;
 }
 
 /**
@@ -313,6 +335,7 @@ class MRPRepository {
         ],
         select: {
           purchaseOrderId: true,
+          purchaseOrderLineId: true,
           materialId: true,
           quantity: true,
           purchaseOrder: {

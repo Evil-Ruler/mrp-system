@@ -86,10 +86,12 @@ function parseIsoDate(dateString, paramName) {
     );
   }
 
-  // Calendar validity check: V8 auto-rolls impossible dates (e.g. "2026-02-30" -> "2026-03-02")
-  const isoDatePart = dateObj.toISOString().slice(0, 10);
+  // Calendar validity check: V8 auto-rolls impossible dates (e.g. "2026-02-30" -> "2026-03-02").
+  // The comparison is performed on the date component parsed as UTC, so a datetime input
+  // without an explicit timezone is not mis-validated by the host machine's timezone offset.
   const inputDatePart = trimmed.slice(0, 10);
-  if (isoDatePart !== inputDatePart) {
+  const normalizedDatePart = new Date(`${inputDatePart}T00:00:00.000Z`).toISOString().slice(0, 10);
+  if (normalizedDatePart !== inputDatePart) {
     throw new ValidationError(
       `${paramName} must be a valid ISO-8601 date string (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss.sssZ).`
     );

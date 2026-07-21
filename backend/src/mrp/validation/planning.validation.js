@@ -68,6 +68,14 @@ function validateDemand(demandLines) {
     if (typeof line.quantity !== "number" || !Number.isFinite(line.quantity) || line.quantity <= 0) {
       throw new ValidationError(`Demand line ${line.demandId || i} has an invalid quantity (${line.quantity}). Quantity must be greater than zero.`);
     }
+
+    if (line.salesOrderId === undefined || line.salesOrderId === null || String(line.salesOrderId).trim() === "") {
+      throw new ValidationError(`Demand line ${line.demandId || i} is missing a salesOrderId.`);
+    }
+
+    if (line.salesOrderLineId === undefined || line.salesOrderLineId === null) {
+      throw new ValidationError(`Demand line ${line.demandId || i} is missing a salesOrderLineId.`);
+    }
   }
 }
 

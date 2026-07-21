@@ -1,5 +1,5 @@
 const repository = require("../repositories/mrp.repository");
-const { ALLOWED_DEMAND_STATUSES } = require("../constants/planning.constants");
+const { ALLOWED_DEMAND_STATUSES, MAX_EXPLODED_REQUIREMENTS } = require("../constants/planning.constants");
 const {
   validateItems,
   validateDemand,
@@ -61,11 +61,15 @@ class MRPService {
       return null;
     }
 
-    const items = await repository.getItems();
-    const bom = await repository.getBomData();
-    const inventory = typeof repository.getInventory === "function" ? await repository.getInventory() : [];
-    const purchaseOrders = typeof repository.getOpenPurchaseOrders === "function" ? await repository.getOpenPurchaseOrders() : [];
-    const productionOrders = typeof repository.getOpenProductionOrders === "function" ? await repository.getOpenProductionOrders() : [];
+    // These loads have no interdependencies, so they run concurrently.
+    // The invocation order is preserved to keep loading deterministic.
+    const [items, bom, inventory, purchaseOrders, productionOrders] = await Promise.all([
+      repository.getItems(),
+      repository.getBomData(),
+      typeof repository.getInventory === "function" ? repository.getInventory() : Promise.resolve([]),
+      typeof repository.getOpenPurchaseOrders === "function" ? repository.getOpenPurchaseOrders() : Promise.resolve([]),
+      typeof repository.getOpenProductionOrders === "function" ? repository.getOpenProductionOrders() : Promise.resolve([]),
+    ]);
 
     return {
       demand,
@@ -145,11 +149,14 @@ class MRPService {
     const sortedDemand = sortDemand(demand);
 
     // Step 3: BOM Explosion (Gross Requirements)
-    const explodedRequirements = explodeBom({
-      demand: sortedDemand,
-      bom,
-      items,
-    });
+    const explodedRequirements = explodeBom(
+      {
+        demand: sortedDemand,
+        bom,
+        items,
+      },
+      { maxResults: MAX_EXPLODED_REQUIREMENTS }
+    );
 
     // Step 4: Inventory Snapshot Creation & Inventory Netting (Net Requirements)
     const inventorySnapshot = createInventorySnapshot(inventory);

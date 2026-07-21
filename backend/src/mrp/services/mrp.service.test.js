@@ -296,6 +296,10 @@ test("runPlanning - propagates repository DataAccessError from secondary loaders
   repository.getItems = async () => [{ itemId: 101, itemCode: "FG-101", itemType: "FINISHED_GOOD", baseUom: "PCS" }];
   repository.getBomData = async () => ({ headers: [{ bomHeaderId: "BOM-101", parentItemId: 101 }], lines: [] });
   repository.getInventory = async () => { throw dbError; };
+  // _loadPlanningData starts all independent loaders with Promise.all. Keep the
+  // failure path fully isolated from the real Prisma repository as well.
+  repository.getOpenPurchaseOrders = async () => [];
+  repository.getOpenProductionOrders = async () => [];
 
   await assert.rejects(
     () => mrpService.runPlanning(),

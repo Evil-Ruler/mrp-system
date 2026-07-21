@@ -96,8 +96,25 @@ test("maps item records to domain objects", async () => {
       itemCode: "FG-100",
       itemType: "FINISHED_GOOD",
       baseUom: "PCS",
+      procurementType: "PRODUCTION",
     },
   ]);
+});
+
+test("derives procurementType from category when no explicit value is present", async () => {
+  prisma.item.findMany = async () => [
+    { itemId: 1, itemCode: "FG-1", category: "Finished Good", uom: "PCS" },
+    { itemId: 2, itemCode: "RM-1", category: "Raw Material", uom: "KG" },
+    { itemId: 3, itemCode: "HW-1", category: "Hardware", uom: "PCS" },
+    { itemId: 4, itemCode: "CN-1", category: "Consumable", uom: "L" },
+  ];
+
+  const items = await repository.getItems();
+
+  assert.equal(items.find((i) => i.itemId === 1).procurementType, "PRODUCTION");
+  assert.equal(items.find((i) => i.itemId === 2).procurementType, "PURCHASE");
+  assert.equal(items.find((i) => i.itemId === 3).procurementType, "PURCHASE");
+  assert.equal(items.find((i) => i.itemId === 4).procurementType, "PURCHASE");
 });
 
 test("maps item records with explicit procurementType to domain objects", async () => {
@@ -273,6 +290,62 @@ test("verifies Prisma select shape for getOpenPurchaseOrders and getOpenProducti
   assert.deepEqual(moArgs.where.status.in, ["OPEN", "RELEASED", "IN_PROGRESS", "PLANNED"]);
   assert.ok(moArgs.select.productionOrderId);
   assert.ok(moArgs.select.productId);
+});
+
+// ============================================================================
+// REPOSITORY CONTRACT: every select must project the fields its mapper consumes
+// (guards the mapper/select drift that previously hid missing procurementType
+// derivation input and the dropped purchaseOrderLineId).
+// ============================================================================
+
+test("select clauses request every field the domain mappers consume", async () => {
+  const itemSelects = [];
+  let demandSelect;
+  let bomSelect;
+  let poSelect;
+  let moSelect;
+
+  prisma.item.findMany = async (a) => { itemSelects.push(a.select); return []; };
+  prisma.salesOrderLine.findMany = async (a) => { demandSelect = a.select; return []; };
+  prisma.bOMHeader.findMany = async (a) => { bomSelect = a.select; return []; };
+  if (!prisma.purchaseOrderLine) prisma.purchaseOrderLine = {};
+  prisma.purchaseOrderLine.findMany = async (a) => { poSelect = a.select; return []; };
+  if (!prisma.productionOrder) prisma.productionOrder = {};
+  prisma.productionOrder.findMany = async (a) => { moSelect = a.select; return []; };
+
+  await repository.getDemandOrderLines();
+  await repository.getItems();      // itemSelects[0]
+  await repository.getInventory();  // itemSelects[1]
+  await repository.getBomData();
+  await repository.getOpenPurchaseOrders();
+  await repository.getOpenProductionOrders();
+
+  // Demand mapper reads: salesOrderLineId, salesOrderId, productId, quantity, product.uom, salesOrder.orderDate
+  assert.ok(demandSelect.salesOrderLineId && demandSelect.salesOrderId && demandSelect.productId && demandSelect.quantity);
+  assert.ok(demandSelect.product && demandSelect.product.select.uom);
+  assert.ok(demandSelect.salesOrder && demandSelect.salesOrder.select.orderDate);
+
+  // Item mapper reads category (source for itemType and derived procurementType); it must
+  // NOT select a non-existent procurementType column (that would break the query).
+  const itemSelect = itemSelects[0];
+  assert.ok(itemSelect.itemId && itemSelect.itemCode && itemSelect.category && itemSelect.uom);
+  assert.equal(itemSelect.procurementType, undefined);
+
+  // Inventory mapper reads: itemId, currentStock, reorderLevel
+  const invSelect = itemSelects[1];
+  assert.ok(invSelect.itemId && invSelect.currentStock && invSelect.reorderLevel);
+
+  // BOM mappers read header.bomId, header.finishedGoodId and line.{bomLineId,bomId,materialId,quantityRequired}
+  assert.ok(bomSelect.bomId && bomSelect.finishedGoodId && bomSelect.bomLines);
+  const lineSelect = bomSelect.bomLines.select;
+  assert.ok(lineSelect.bomLineId && lineSelect.bomId && lineSelect.materialId && lineSelect.quantityRequired);
+
+  // Purchase supply mapper reads purchaseOrderId, purchaseOrderLineId, materialId, quantity, purchaseOrder.orderDate
+  assert.ok(poSelect.purchaseOrderId && poSelect.purchaseOrderLineId && poSelect.materialId && poSelect.quantity);
+  assert.ok(poSelect.purchaseOrder && poSelect.purchaseOrder.select.orderDate);
+
+  // Production supply mapper reads productionOrderId, productId, quantity, startDate
+  assert.ok(moSelect.productionOrderId && moSelect.productId && moSelect.quantity && moSelect.startDate);
 });
 
 // ============================================================================

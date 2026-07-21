@@ -9,7 +9,7 @@ The MRP module processes sales order demand through a 6-stage deterministic plan
 ### Key Domain Capabilities
 
 - **BOM Ambiguity Validation**: Guarantees exactly one BOM header per finished good. Rejects planning runs with a `ValidationError` if multiple BOM headers exist for any parent item.
-- **Context-Aware BOM Line Validation**: Validates that all parent items participating in the active planning graph contain component lines. Unused BOM headers in master data are safely ignored.
+- **Context-Aware BOM Line Validation**: Validates that every *directly demanded* finished good has a non-empty BOM. Reachable sub-assemblies are traversed (and cycle-checked) by the planning engine, not the validation layer. Unused BOM headers in master data are safely ignored.
 - **Deterministic Repository Queries**: All Prisma ORM `findMany()` queries execute with explicit `orderBy` clauses (never relying on database default sorting).
 - **Finite Number Validation**: Enforces `Number.isFinite()` on numeric planning quantities (`demand.quantity`, `bomLine.qtyPerParent`) in the domain validation layer, rejecting `NaN`, `Infinity`, and `-Infinity`.
 - **Pure Header-Based BOM Graph Construction**: Constructs BOM graphs using `BOMHeader` $\rightarrow$ `BOMLine` relations while preserving pure engine execution decoupled from business validation logic.
@@ -41,3 +41,9 @@ cd backend
 npm install
 npm test
 ```
+
+The self-contained test suite runs with Node's built-in test runner and currently contains 167 passing tests; it does not require a running PostgreSQL instance.
+
+## Migration note
+
+The Prisma migration chain supports fresh installations, empty development databases, and fresh CI databases. Do not apply `20260704111810_add_remaining_tables` directly to a populated database that has only the initial migration: it replaces `items.item_id` while changing its type. Migration history is retained unchanged; use an operator-reviewed one-time upgrade plan for that legacy state. See [the migration notes](backend/prisma/MIGRATION_NOTES.md).

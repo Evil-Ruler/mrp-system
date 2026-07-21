@@ -126,6 +126,15 @@ function traverseBom(context) {
       );
     }
 
+    // Deterministic guardrail: abort on pathologically large explosions.
+    // Defaults to Infinity (no effect) unless a caller configures maxResults.
+    if (results.length >= context.maxResults) {
+      throw new ValidationError(
+        `BOM explosion exceeded the maximum of ${context.maxResults} component requirements. ` +
+        `The BOM graph is too large or contains excessive fan-out.`
+      );
+    }
+
     const requiredQuantity = currentQuantity * childLine.qtyPerParent;
     const childPath = [...path, childItemId];
 
@@ -196,10 +205,12 @@ function compareRequirements(a, b) {
  * - Returned array is deterministically sorted by `requiredDate` (asc), `bomLevel` (asc), `itemId` (asc), `salesOrderId` (asc), and `salesOrderLineId` (asc).
  *
  * @param {{demand: Demand[], bom: {headers: BomHeader[], lines: BomLine[]}, items: Item[]}} planningData
+ * @param {{maxResults?: number}} [options] Optional guardrails. `maxResults` caps the total number
+ *   of exploded requirements (defaults to `Infinity`, i.e. no limit and no behavior change).
  * @returns {ExplodedRequirement[]} Deterministically sorted array of exploded component requirements
- * @throws {ValidationError} If a cyclic BOM dependency is detected or qtyPerParent is invalid
+ * @throws {ValidationError} If a cyclic BOM dependency is detected or the maxResults guardrail is exceeded
  */
-function explodeBom(planningData) {
+function explodeBom(planningData, options = {}) {
   if (
     !planningData ||
     !Array.isArray(planningData.demand) ||
@@ -208,6 +219,7 @@ function explodeBom(planningData) {
     return [];
   }
 
+  const maxResults = typeof options.maxResults === "number" ? options.maxResults : Infinity;
   const bomLookup = createBomLookup(planningData.bom);
   const results = [];
 
@@ -227,6 +239,7 @@ function explodeBom(planningData) {
       visitedSet,
       bomLookup,
       results,
+      maxResults,
     });
   }
 

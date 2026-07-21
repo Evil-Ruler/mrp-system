@@ -70,8 +70,9 @@
  * @property {ItemId} itemId Item master record identifier
  * @property {string} itemCode Unique alphanumeric SKU item code
  * @property {string} itemType Item category classification (e.g. FINISHED_GOOD, SUB_ASSEMBLY, RAW_MATERIAL)
- * @property {ProcurementType} [procurementType] Optional explicit fulfillment strategy ("PURCHASE" vs "PRODUCTION").
- *                                                If omitted in schema, derived dynamically by engine from itemType.
+ * @property {ProcurementType} [procurementType] Fulfillment strategy ("PURCHASE" vs "PRODUCTION").
+ *                                                Derived by the repository mapper from the item category
+ *                                                when no explicit value is persisted (see mrp.repository.js).
  * @property {UnitOfMeasure} baseUom Standard stocking unit of measure
  */
 

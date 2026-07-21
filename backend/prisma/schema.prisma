@@ -66,6 +66,8 @@ model SalesOrder {
   productionOrders ProductionOrder[]
   salesOrderLines  SalesOrderLine[]
 
+  @@index([status])
+  @@index([orderDate])
   @@map("sales_orders")
 }
 
@@ -80,6 +82,7 @@ model PurchaseOrder {
 
   purchaseOrderLines PurchaseOrderLine[]
 
+  @@index([status])
   @@map("purchase_orders")
 }
 
@@ -97,6 +100,8 @@ model ProductionOrder {
   salesOrder SalesOrder @relation(fields: [salesOrderId], references: [salesOrderId])
   product    Item       @relation(fields: [productId], references: [itemId])
 
+  @@index([status])
+  @@index([startDate])
   @@map("production_orders")
 }
 
@@ -110,6 +115,7 @@ model BOMHeader {
   // One BOM has many BOM lines
   bomLines BOMLine[]
 
+  @@index([finishedGoodId])
   @@map("bom_headers")
 }
 
@@ -123,6 +129,8 @@ model BOMLine {
   bom      BOMHeader @relation(fields: [bomId], references: [bomId])
   material Item      @relation(fields: [materialId], references: [itemId])
 
+  @@index([bomId])
+  @@index([materialId])
   @@map("bom_lines")
 }
 
@@ -136,6 +144,8 @@ model SalesOrderLine {
   salesOrder SalesOrder @relation(fields: [salesOrderId], references: [salesOrderId])
   product    Item       @relation(fields: [productId], references: [itemId])
 
+  @@index([salesOrderId])
+  @@index([productId])
   @@map("sales_order_lines")
 }
 
@@ -149,5 +159,7 @@ model PurchaseOrderLine {
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [purchaseOrderId])
   material      Item          @relation(fields: [materialId], references: [itemId])
 
+  @@index([purchaseOrderId])
+  @@index([materialId])
   @@map("purchase_order_lines")
 }
