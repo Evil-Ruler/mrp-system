@@ -111,6 +111,7 @@ function createNetRequirement(requirement, availableInventoryUsed, netRequiremen
  * - Full Demand Lineage: All traceability fields (`salesOrderId`, `salesOrderLineId`, `requiredDate`, `path`) are preserved on every output record.
  * - Input Immutability: Inputs (`explodedRequirements`, `inventory`) are never mutated.
  * - Output Isolation: Returned array and `NetRequirement` records are newly allocated.
+ * - Performance Complexity: O(N + M) time complexity where N is inventory count and M is exploded requirements count; O(N + M) space complexity.
  *
  * @param {ExplodedRequirement[]} explodedRequirements Gross requirements from explodeBom()
  * @param {InventoryRecord[]} [inventory] Current available warehouse inventory

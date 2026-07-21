@@ -274,3 +274,35 @@ test("calculateInventoryNetting - handles 1000+ requirements with strict deep eq
     assert.equal(run1[i].netRequirement, 10);
   }
 });
+
+test("calculateInventoryNetting - preserves complete demand lineage on output records", () => {
+  const reqDate = new Date("2026-09-15T00:00:00.000Z");
+  const reqs = [
+    createExplodedRequirement({
+      demandSourceType: "SALES_ORDER",
+      salesOrderId: "SO-999",
+      salesOrderLineId: 42,
+      itemId: ITEM_BOLT,
+      requiredQuantity: 15,
+      requiredDate: reqDate,
+      bomLevel: 2,
+      path: [100, 200, ITEM_BOLT],
+    }),
+  ];
+  const inventory = [{ itemId: ITEM_BOLT, availableQuantity: 10 }];
+
+  const results = calculateInventoryNetting(reqs, inventory);
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].demandSourceType, "SALES_ORDER");
+  assert.equal(results[0].salesOrderId, "SO-999");
+  assert.equal(results[0].salesOrderLineId, 42);
+  assert.equal(results[0].itemId, ITEM_BOLT);
+  assert.equal(results[0].grossRequirement, 15);
+  assert.equal(results[0].availableInventoryUsed, 10);
+  assert.equal(results[0].netRequirement, 5);
+  assert.equal(results[0].requiredDate.toISOString(), reqDate.toISOString());
+  assert.equal(results[0].bomLevel, 2);
+  assert.deepStrictEqual(results[0].path, [100, 200, ITEM_BOLT]);
+});
+
