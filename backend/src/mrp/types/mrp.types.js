@@ -95,15 +95,16 @@
 
 /**
  * Net component shortfall derived during Stage 2 (Inventory Netting).
+ * Calculated as: netRequirement = grossRequirement - availableInventoryUsed.
  *
  * @typedef {Object} NetRequirement
  * @property {DemandSourceType} demandSourceType Origin source type of demand
  * @property {SalesOrderId} salesOrderId Customer sales order reference
  * @property {SalesOrderLineId} salesOrderLineId Sales order line item sequence
  * @property {ItemId} itemId Component item ID
- * @property {Quantity} grossRequirement Total gross quantity required before stock netting
- * @property {Quantity} availableInventoryUsed On-hand warehouse stock consumed
- * @property {Quantity} netRequirement Unfulfilled shortfall after inventory netting
+ * @property {Quantity} grossRequirement Total gross quantity required before stock netting (Stage 1 output)
+ * @property {Quantity} availableInventoryUsed On-hand warehouse stock consumed (Stage 2 output)
+ * @property {Quantity} netRequirement Unfulfilled shortfall after inventory netting (Stage 2 output)
  * @property {RequiredDate} requiredDate Date requirement is needed
  * @property {number} bomLevel Tree depth in BOM hierarchy
  * @property {number[]} path Traversal ancestor item path
@@ -111,18 +112,19 @@
 
 /**
  * Requirement allocated against open purchase/production supply during Stage 3 (Supply Allocation).
+ * Calculated as: remainingShortage = netRequirement - (purchaseSupplyUsed + productionSupplyUsed).
  *
  * @typedef {Object} AllocatedRequirement
  * @property {DemandSourceType} demandSourceType Origin source type of demand
  * @property {SalesOrderId} salesOrderId Customer sales order reference
  * @property {SalesOrderLineId} salesOrderLineId Sales order line item sequence
  * @property {ItemId} itemId Component item ID
- * @property {Quantity} grossRequirement Total gross quantity required
- * @property {Quantity} availableInventoryUsed Warehouse inventory stock consumed
- * @property {Quantity} netRequirement Net shortfall before open supply allocation
- * @property {Quantity} purchaseSupplyUsed Allocated open Purchase Order quantity
- * @property {Quantity} productionSupplyUsed Allocated open Production Order quantity
- * @property {Quantity} remainingShortage Remaining unfulfilled shortage requiring action
+ * @property {Quantity} grossRequirement Total gross quantity required (Stage 1 output)
+ * @property {Quantity} availableInventoryUsed Warehouse inventory stock consumed (Stage 2 output)
+ * @property {Quantity} netRequirement Net shortfall before open supply allocation (Stage 2 output)
+ * @property {Quantity} purchaseSupplyUsed Allocated open Purchase Order quantity (Stage 3 output)
+ * @property {Quantity} productionSupplyUsed Allocated open Production Order quantity (Stage 3 output)
+ * @property {Quantity} remainingShortage Remaining unfulfilled shortage requiring action (Stage 3 output)
  * @property {RequiredDate} requiredDate Date requirement is needed
  * @property {number} bomLevel Tree depth in BOM hierarchy
  * @property {number[]} path Traversal ancestor item path

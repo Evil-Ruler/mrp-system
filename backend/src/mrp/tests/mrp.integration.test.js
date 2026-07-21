@@ -323,3 +323,39 @@ test("Scenario 12: Repository Failure Propagation - returns 500 Internal Server 
   assert.equal(response.body.error.code, "DATA_ACCESS_ERROR");
   assert.equal(response.body.error.message, "Failed to query demand lines from database");
 });
+
+// ============================================================================
+// SCENARIO 13: END-TO-END PIPELINE NET REQUIREMENT VERIFICATION
+// ============================================================================
+
+test("Scenario 13: Net Requirements Verification - verifies netRequirement = grossRequirement - availableInventoryUsed and full pipeline progression", async () => {
+  setupRealWorldDataset();
+
+  const response = await request(app).get("/api/mrp/run").expect(200);
+
+  const netReqs = response.body.data.netRequirements;
+  const allocReqs = response.body.data.allocatedRequirements;
+
+  assert.ok(netReqs.length > 0, "netRequirements must be populated");
+  assert.equal(netReqs.length, allocReqs.length, "netRequirements and allocatedRequirements length must match");
+
+  for (let i = 0; i < netReqs.length; i++) {
+    const net = netReqs[i];
+    const alloc = allocReqs[i];
+
+    // Verify Stage 2 Gross-to-Net formula
+    assert.equal(
+      net.netRequirement,
+      net.grossRequirement - net.availableInventoryUsed,
+      "netRequirement must strictly equal grossRequirement - availableInventoryUsed"
+    );
+
+    // Verify Stage 3 Supply Allocation formula
+    assert.equal(alloc.netRequirement, net.netRequirement, "Allocated record must preserve Stage 2 netRequirement");
+    assert.equal(
+      alloc.remainingShortage,
+      Math.max(0, alloc.netRequirement - (alloc.purchaseSupplyUsed + alloc.productionSupplyUsed)),
+      "remainingShortage must equal netRequirement - allocated supply"
+    );
+  }
+});
