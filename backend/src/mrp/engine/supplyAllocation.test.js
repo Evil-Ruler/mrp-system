@@ -362,3 +362,24 @@ test("allocateSupply - handles 1000+ net requirements and thousands of supply or
     assert.equal(run1[i].remainingShortage, 10);
   }
 });
+
+test("allocateSupply - allocates multi-tier supply in priority sequence (PO=30, MO=60, Shortage=10 for 100 net requirement)", () => {
+  const reqs = [createNetRequirement({ netRequirement: 100 })];
+  const purchaseOrders = [
+    { purchaseOrderId: "PO-001", itemId: ITEM_BOLT, openQuantity: 30, expectedDate: new Date("2026-08-05") },
+  ];
+  const productionOrders = [
+    { productionOrderId: "MO-001", itemId: ITEM_BOLT, openQuantity: 20, expectedDate: new Date("2026-08-06") },
+    { productionOrderId: "MO-002", itemId: ITEM_BOLT, openQuantity: 40, expectedDate: new Date("2026-08-07") },
+  ];
+
+  const results = allocateSupply(reqs, purchaseOrders, productionOrders);
+
+  assert.equal(results.length, 1);
+  assertSupplyInvariants(results);
+  assert.equal(results[0].grossRequirement, 50);
+  assert.equal(results[0].netRequirement, 100);
+  assert.equal(results[0].purchaseSupplyUsed, 30);
+  assert.equal(results[0].productionSupplyUsed, 60);
+  assert.equal(results[0].remainingShortage, 10);
+});
