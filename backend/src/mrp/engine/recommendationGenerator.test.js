@@ -469,3 +469,57 @@ test("policy interaction integration test - Netting + Safety Stock + FOQ Lot Siz
   assert.equal(rec.isPastDue, false);
 });
 
+// ============================================================================
+// 9. CROSS-POLICY INTEGRATION TEST (NETTING + FOQ + MAX ORDER SPLIT + LEAD TIME)
+// ============================================================================
+
+test("cross-policy integration test - Netting + FOQ Lot Sizing + Max Order Quantity Modifier + Lead Time Scheduling", () => {
+  const planningDate = new Date("2026-08-01T00:00:00.000Z");
+
+  const item = {
+    itemId: 601,
+    itemCode: "ITEM-FOQ-MAX-SPLIT",
+    procurementType: "PURCHASE",
+    purchaseLeadTimeDays: 5,
+    lotSizingPolicy: "FOQ",
+    fixedOrderQuantity: 250,
+    maxOrderQuantity: 200,
+  };
+
+  const allocatedReqs = [
+    createAllocatedRequirement({
+      itemId: 601,
+      remainingShortage: 600,
+      requiredDate: new Date("2026-08-15T00:00:00.000Z"),
+      salesOrderId: "SO-601",
+      salesOrderLineId: 1,
+    }),
+  ];
+
+  // Demand = 600 -> FOQ 250 rounds up to 750 -> Max Order Quantity 200 splits 750 into [200, 200, 200, 150]
+  // Lead Time 5d backward schedules each split order from 15 Aug to 10 Aug.
+  const results = generateRecommendations(allocatedReqs, [item], planningDate);
+
+  assert.equal(results.length, 4);
+
+  const parentId = results[0].parentSplitId;
+  assert.ok(parentId && parentId.startsWith("SPLIT-SO-601-1-601-"));
+
+  // Check 4 split recommendation items
+  const expectedQuantities = [200, 200, 200, 150];
+
+  for (let i = 0; i < results.length; i++) {
+    const rec = results[i];
+    assert.equal(rec.itemId, 601);
+    assert.equal(rec.shortageQuantity, 600);
+    assert.equal(rec.quantity, expectedQuantities[i]);
+    assert.equal(rec.parentSplitId, parentId);
+    assert.equal(rec.splitSequence, i + 1);
+    assert.equal(rec.splitTotalCount, 4);
+    assert.equal(rec.modifierReason, "MAX_ORDER_QUANTITY");
+    assert.equal(rec.plannedReceiptDate.toISOString(), "2026-08-15T00:00:00.000Z");
+    assert.equal(rec.plannedReleaseDate.toISOString(), "2026-08-10T00:00:00.000Z");
+    assert.equal(rec.isPastDue, false);
+  }
+});
+

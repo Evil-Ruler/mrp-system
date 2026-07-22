@@ -80,6 +80,8 @@
  * @property {number} [purchaseLeadTimeDays=0] Purchase lead time in calendar days (for PURCHASE items)
  * @property {number} [manufacturingLeadTimeDays=0] In-house manufacturing lead time in calendar days (for PRODUCTION items)
  * @property {number} [safetyStock=0] Fixed safety stock buffer threshold
+ * @property {number} [maxOrderQuantity] Maximum single order batch size
+ * @property {number} [minimumPlanningQuantity] Minimum planning order size floor
  */
 
 // ============================================================================
@@ -151,6 +153,10 @@
  * @property {Date} plannedReceiptDate Target date materials must arrive (equals requiredDate in V1)
  * @property {Date} plannedReleaseDate Target date order must be released (plannedReceiptDate - leadTimeDays)
  * @property {boolean} isPastDue True if plannedReleaseDate < planningDate
+ * @property {string|null} [parentSplitId] Grouping identifier linking split recommendation records
+ * @property {number} [splitSequence] 1-based index of split recommendation
+ * @property {number} [splitTotalCount] Total number of split recommendations generated
+ * @property {string|null} [modifierReason] Reason code ("MAX_ORDER_QUANTITY" | "MINIMUM_PLANNING_QUANTITY" | null)
  * @property {DemandSourceType} demandSourceType Origin source type of demand
  * @property {SalesOrderId} salesOrderId Upstream sales order reference
  * @property {SalesOrderLineId} salesOrderLineId Upstream sales order line item sequence

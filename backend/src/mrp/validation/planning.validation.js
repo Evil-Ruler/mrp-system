@@ -113,6 +113,32 @@ function validateItems(items) {
         );
       }
     }
+
+    if (item.maxOrderQuantity !== undefined && item.maxOrderQuantity !== null) {
+      if (typeof item.maxOrderQuantity !== "number" || !Number.isInteger(item.maxOrderQuantity) || item.maxOrderQuantity <= 0) {
+        throw new ValidationError(
+          `Item ${item.itemId} has invalid maxOrderQuantity (${item.maxOrderQuantity}). Must be a positive integer.`
+        );
+      }
+    }
+
+    if (item.minimumPlanningQuantity !== undefined && item.minimumPlanningQuantity !== null) {
+      if (typeof item.minimumPlanningQuantity !== "number" || !Number.isInteger(item.minimumPlanningQuantity) || item.minimumPlanningQuantity <= 0) {
+        throw new ValidationError(
+          `Item ${item.itemId} has invalid minimumPlanningQuantity (${item.minimumPlanningQuantity}). Must be a positive integer.`
+        );
+      }
+    }
+
+    if (
+      typeof item.maxOrderQuantity === "number" &&
+      typeof item.minimumPlanningQuantity === "number" &&
+      item.maxOrderQuantity < item.minimumPlanningQuantity
+    ) {
+      throw new ValidationError(
+        `Item ${item.itemId} has maxOrderQuantity (${item.maxOrderQuantity}) less than minimumPlanningQuantity (${item.minimumPlanningQuantity}).`
+      );
+    }
   }
 }
 

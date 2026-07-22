@@ -51,6 +51,8 @@ model Item {
   purchaseLeadTimeDays Int?   @default(0) @map("purchase_lead_time_days")
   manufacturingLeadTimeDays Int? @default(0) @map("manufacturing_lead_time_days")
   safetyStock             Int?    @default(0) @map("safety_stock")
+  maxOrderQuantity        Int?    @map("max_order_quantity")
+  minimumPlanningQuantity Int?    @map("minimum_planning_quantity")
 
   productionOrders   ProductionOrder[]
   bomHeaders         BOMHeader[]

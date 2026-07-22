@@ -137,6 +137,8 @@ function toItemDomain(item) {
     purchaseLeadTimeDays: typeof item.purchaseLeadTimeDays === "number" ? item.purchaseLeadTimeDays : 0,
     manufacturingLeadTimeDays: typeof item.manufacturingLeadTimeDays === "number" ? item.manufacturingLeadTimeDays : 0,
     safetyStock: typeof item.safetyStock === "number" ? item.safetyStock : 0,
+    maxOrderQuantity: item.maxOrderQuantity ?? undefined,
+    minimumPlanningQuantity: item.minimumPlanningQuantity ?? undefined,
   };
 }
 
@@ -305,6 +307,8 @@ class MRPRepository {
           purchaseLeadTimeDays: true,
           manufacturingLeadTimeDays: true,
           safetyStock: true,
+          maxOrderQuantity: true,
+          minimumPlanningQuantity: true,
         },
       });
 

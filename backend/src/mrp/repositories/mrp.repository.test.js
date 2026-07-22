@@ -103,6 +103,8 @@ test("maps item records to narrow domain objects", async () => {
       purchaseLeadTimeDays: 0,
       manufacturingLeadTimeDays: 0,
       safetyStock: 0,
+      maxOrderQuantity: undefined,
+      minimumPlanningQuantity: undefined,
     },
   ]);
 });
@@ -148,6 +150,8 @@ test("maps item records with explicit valid procurementType to domain objects", 
       purchaseLeadTimeDays: 0,
       manufacturingLeadTimeDays: 0,
       safetyStock: 0,
+      maxOrderQuantity: undefined,
+      minimumPlanningQuantity: undefined,
     },
     {
       itemId: 3,
@@ -161,6 +165,8 @@ test("maps item records with explicit valid procurementType to domain objects", 
       purchaseLeadTimeDays: 0,
       manufacturingLeadTimeDays: 0,
       safetyStock: 0,
+      maxOrderQuantity: undefined,
+      minimumPlanningQuantity: undefined,
     },
   ]);
 });
@@ -378,7 +384,7 @@ test("select clauses request every field the domain mappers consume", async () =
   // Item mapper reads itemId, itemCode, category, uom, procurementType, lotSizingPolicy, fixedOrderQuantity, minimumOrderQuantity, orderMultiple
   const itemSelect = itemSelects[0];
   assert.ok(itemSelect.itemId && itemSelect.itemCode && itemSelect.category && itemSelect.uom);
-  assert.ok(itemSelect.procurementType && itemSelect.lotSizingPolicy && itemSelect.fixedOrderQuantity && itemSelect.minimumOrderQuantity && itemSelect.orderMultiple && itemSelect.purchaseLeadTimeDays && itemSelect.manufacturingLeadTimeDays && itemSelect.safetyStock);
+  assert.ok(itemSelect.procurementType && itemSelect.lotSizingPolicy && itemSelect.fixedOrderQuantity && itemSelect.minimumOrderQuantity && itemSelect.orderMultiple && itemSelect.purchaseLeadTimeDays && itemSelect.manufacturingLeadTimeDays && itemSelect.safetyStock && itemSelect.maxOrderQuantity && itemSelect.minimumPlanningQuantity);
 
   // Inventory mapper reads: itemId, currentStock, reorderLevel
   const invSelect = itemSelects[1];

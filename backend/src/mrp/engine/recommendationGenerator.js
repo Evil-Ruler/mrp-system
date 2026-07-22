@@ -1,5 +1,6 @@
 const { PROCUREMENT_TYPES } = require("../constants/procurement.constants");
 const { calculateLotSize } = require("../policies/lotSizing/lotSizingCalculator");
+const { calculateOrderModifiers } = require("../policies/orderModifiers/orderModifierCalculator");
 const { calculateSchedule } = require("../policies/scheduling/schedulingCalculator");
 
 /** @typedef {import("../types/mrp.types").AllocatedRequirement} AllocatedRequirement */
@@ -61,9 +62,14 @@ function determineRecommendationType(itemMap, itemId) {
  * @param {ProcurementType} recommendationType Derived recommendation type
  * @param {number} lotSizedQuantity Calculated lot-sized order quantity
  * @param {{requiredDate: Date, plannedReceiptDate: Date, plannedReleaseDate: Date, isPastDue: boolean}} scheduleDates Backward scheduling dates
+ * @param {Object} [splitMetadata] Order modifier split metadata
+ * @param {string|null} [splitMetadata.parentSplitId] Grouping identifier linking split recommendation records
+ * @param {number} [splitMetadata.splitSequence] 1-based index of split recommendation
+ * @param {number} [splitMetadata.splitTotalCount] Total number of split recommendations generated
+ * @param {string|null} [splitMetadata.modifierReason] Reason code
  * @returns {Recommendation} Freshly allocated Recommendation object
  */
-function createRecommendation(allocatedReq, recommendationType, lotSizedQuantity, scheduleDates) {
+function createRecommendation(allocatedReq, recommendationType, lotSizedQuantity, scheduleDates, splitMetadata = {}) {
   return {
     recommendationType,
     itemId: allocatedReq.itemId,
@@ -73,6 +79,10 @@ function createRecommendation(allocatedReq, recommendationType, lotSizedQuantity
     plannedReceiptDate: scheduleDates.plannedReceiptDate,
     plannedReleaseDate: scheduleDates.plannedReleaseDate,
     isPastDue: scheduleDates.isPastDue,
+    parentSplitId: splitMetadata.parentSplitId || null,
+    splitSequence: typeof splitMetadata.splitSequence === "number" ? splitMetadata.splitSequence : 1,
+    splitTotalCount: typeof splitMetadata.splitTotalCount === "number" ? splitMetadata.splitTotalCount : 1,
+    modifierReason: splitMetadata.modifierReason || null,
     demandSourceType: allocatedReq.demandSourceType || "SALES_ORDER",
     salesOrderId: allocatedReq.salesOrderId,
     salesOrderLineId: allocatedReq.salesOrderLineId,
@@ -86,14 +96,10 @@ function createRecommendation(allocatedReq, recommendationType, lotSizedQuantity
  *
  * **Architectural & Business Guarantees**:
  * - Shortage Filtering: Recommendations are generated ONLY when `remainingShortage > 0`. Zero-shortage requirements are skipped.
- * - Lot Sizing Integration: Recommended `quantity` is calculated according to each item's configured `lotSizingPolicy` (L4L, FOQ, MOQ, ORDER_MULTIPLE).
- * - Lead Time Backward Scheduling: Backward schedules `plannedReleaseDate` based on `purchaseLeadTimeDays` or `manufacturingLeadTimeDays`.
- * - Lineage Auditability: Preserves `shortageQuantity` (raw unfulfilled net shortage) alongside `quantity` (lot-sized order quantity).
- * - Unaggregated Lineage Rule: Every unfulfilled demand line generates exactly ONE recommendation record. Recommendations are intentionally NEVER aggregated across sales orders or items to preserve end-to-end demand lineage.
- * - Centralized Domain Types: Consumes domain types imported from `mrp.types.js`.
- * - O(N) Time Complexity: Performs sequential iteration with O(1) map lookups.
- * - Input Immutability: Inputs (`allocatedRequirements`, `items`) are never mutated.
- * - Output Isolation: Returned array and `Recommendation` objects are newly allocated.
+ * - Lot Sizing Integration (Stage 4A): Recommended `quantity` is calculated according to each item's configured `lotSizingPolicy` (L4L, FOQ, MOQ, ORDER_MULTIPLE).
+ * - Order Modifiers Integration (Stage 4B): Order modifier strategy chain (minPlanningQuantity, maxOrderQuantity) adjusts/splits order quantities.
+ * - Lead Time Backward Scheduling (Stage 4C): Backward schedules `plannedReleaseDate` based on `purchaseLeadTimeDays` or `manufacturingLeadTimeDays` for each individual recommendation.
+ * - Lineage Auditability: Preserves `shortageQuantity` alongside `quantity`, `modifierReason`, and split metadata.
  *
  * @param {AllocatedRequirement[]} allocatedRequirements Allocated requirements from allocateSupply()
  * @param {Item[]} [items] Item master list containing procurementType, lot sizing, and lead time configurations
@@ -117,10 +123,30 @@ function generateRecommendations(allocatedRequirements, items = [], planningDate
 
     const itemConfig = itemMap.get(req.itemId);
     const recommendationType = determineRecommendationType(itemMap, req.itemId);
-    const lotSizedQuantity = calculateLotSize(req.remainingShortage, itemConfig);
-    const scheduleDates = calculateSchedule(req.requiredDate, itemConfig, planningDate);
 
-    results.push(createRecommendation(req, recommendationType, lotSizedQuantity, scheduleDates));
+    // Stage 4A: Lot Sizing
+    const baseLotSize = calculateLotSize(req.remainingShortage, itemConfig);
+
+    // Stage 4B: Order Modifiers (Calculator & Strategy Registry)
+    const modifiedEntries = calculateOrderModifiers(baseLotSize, itemConfig);
+
+    const isSplit = modifiedEntries.length > 1;
+    const parentSplitId = isSplit ? `SPLIT-${req.salesOrderId || "SO"}-${req.salesOrderLineId || 0}-${req.itemId}-${i + 1}` : null;
+
+    // Stage 4C: Lead Time Backward Scheduling per recommendation line
+    for (let k = 0; k < modifiedEntries.length; k++) {
+      const entry = modifiedEntries[k];
+      const scheduleDates = calculateSchedule(req.requiredDate, itemConfig, planningDate);
+
+      results.push(
+        createRecommendation(req, recommendationType, entry.quantity, scheduleDates, {
+          parentSplitId,
+          splitSequence: k + 1,
+          splitTotalCount: modifiedEntries.length,
+          modifierReason: entry.modifierReason,
+        })
+      );
+    }
   }
 
   return results;
