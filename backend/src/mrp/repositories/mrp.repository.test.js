@@ -96,6 +96,10 @@ test("maps item records to narrow domain objects", async () => {
       itemCode: "FG-100",
       baseUom: "PCS",
       procurementType: "PRODUCTION",
+      lotSizingPolicy: "L4L",
+      fixedOrderQuantity: undefined,
+      minimumOrderQuantity: undefined,
+      orderMultiple: undefined,
     },
   ]);
 });
@@ -134,12 +138,20 @@ test("maps item records with explicit valid procurementType to domain objects", 
       itemCode: "RM-200",
       baseUom: "KG",
       procurementType: "PURCHASE",
+      lotSizingPolicy: "L4L",
+      fixedOrderQuantity: undefined,
+      minimumOrderQuantity: undefined,
+      orderMultiple: undefined,
     },
     {
       itemId: 3,
       itemCode: "SA-300",
       baseUom: "PCS",
       procurementType: "PRODUCTION",
+      lotSizingPolicy: "L4L",
+      fixedOrderQuantity: undefined,
+      minimumOrderQuantity: undefined,
+      orderMultiple: undefined,
     },
   ]);
 });
@@ -354,11 +366,10 @@ test("select clauses request every field the domain mappers consume", async () =
   assert.ok(demandSelect.product && demandSelect.product.select.uom);
   assert.ok(demandSelect.salesOrder && demandSelect.salesOrder.select.orderDate);
 
-  // Item mapper reads category (source for itemType and derived procurementType); it must
-  // NOT select a non-existent procurementType column (that would break the query).
+  // Item mapper reads itemId, itemCode, category, uom, procurementType, lotSizingPolicy, fixedOrderQuantity, minimumOrderQuantity, orderMultiple
   const itemSelect = itemSelects[0];
   assert.ok(itemSelect.itemId && itemSelect.itemCode && itemSelect.category && itemSelect.uom);
-  assert.equal(itemSelect.procurementType, undefined);
+  assert.ok(itemSelect.procurementType && itemSelect.lotSizingPolicy && itemSelect.fixedOrderQuantity && itemSelect.minimumOrderQuantity && itemSelect.orderMultiple);
 
   // Inventory mapper reads: itemId, currentStock, reorderLevel
   const invSelect = itemSelects[1];

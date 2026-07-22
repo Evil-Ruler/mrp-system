@@ -63,6 +63,8 @@
  * @property {Quantity} qtyPerParent Usage multiplier required to produce 1 unit of parent
  */
 
+/** @typedef {"L4L"|"FOQ"|"MOQ"|"ORDER_MULTIPLE"} LotSizingPolicy Configured lot sizing strategy key */
+
 /**
  * Item Master Planning DTO consumed by planning validation and MRP engine.
  *
@@ -71,6 +73,10 @@
  * @property {string} itemCode Unique alphanumeric SKU item code
  * @property {ProcurementType} procurementType Policy strategy ("PURCHASE" or "PRODUCTION")
  * @property {UnitOfMeasure} baseUom Standard stocking unit of measure
+ * @property {LotSizingPolicy} [lotSizingPolicy="L4L"] Lot sizing policy strategy key
+ * @property {number} [fixedOrderQuantity] Fixed order quantity (for FOQ)
+ * @property {number} [minimumOrderQuantity] Minimum order quantity threshold (for MOQ)
+ * @property {number} [orderMultiple] Order quantity rounding multiple (for ORDER_MULTIPLE)
  */
 
 // ============================================================================
@@ -134,7 +140,8 @@
  * @typedef {Object} Recommendation
  * @property {ProcurementType} recommendationType Action strategy ("PURCHASE" or "PRODUCTION")
  * @property {ItemId} itemId Item requiring procurement or manufacturing
- * @property {Quantity} quantity Recommended order quantity
+ * @property {Quantity} shortageQuantity Raw unfulfilled remaining shortage quantity
+ * @property {Quantity} quantity Recommended lot-sized order quantity
  * @property {RequiredDate} requiredDate Date order must be available
  * @property {DemandSourceType} demandSourceType Origin source type of demand
  * @property {SalesOrderId} salesOrderId Upstream sales order reference

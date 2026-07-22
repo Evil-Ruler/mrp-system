@@ -1,10 +1,15 @@
 const { ValidationError } = require("../errors/mrp.errors");
 const { VALID_PROCUREMENT_TYPES } = require("../constants/procurement.constants");
+const { LOT_SIZING_POLICIES, VALID_LOT_SIZING_POLICIES } = require("../constants/lotSizing.constants");
 
 /** @typedef {import("../types/mrp.types").Demand} Demand */
 /** @typedef {import("../types/mrp.types").Item} Item */
 /** @typedef {import("../types/mrp.types").BomHeader} BomHeader */
 /** @typedef {import("../types/mrp.types").BomLine} BomLine */
+
+function isPositiveFiniteNumber(val) {
+  return typeof val === "number" && Number.isFinite(val) && val > 0;
+}
 
 /**
  * Validates item master records.
@@ -14,6 +19,8 @@ const { VALID_PROCUREMENT_TYPES } = require("../constants/procurement.constants"
  * - itemCode: required non-empty string
  * - baseUom: required non-empty string
  * - procurementType: required and must be present in VALID_PROCUREMENT_TYPES ("PURCHASE" or "PRODUCTION")
+ * - lotSizingPolicy: optional (defaults to "L4L"), if present must be in VALID_LOT_SIZING_POLICIES
+ * - fixedOrderQuantity / minimumOrderQuantity / orderMultiple: must be finite numbers > 0 when required by policy
  *
  * @param {Item[]} items
  * @throws {ValidationError}
@@ -54,6 +61,33 @@ function validateItems(items) {
       throw new ValidationError(
         `Item ${item.itemId} has invalid procurementType "${item.procurementType}". Must be "PURCHASE" or "PRODUCTION".`
       );
+    }
+
+    const policy = item.lotSizingPolicy ? String(item.lotSizingPolicy).trim().toUpperCase() : LOT_SIZING_POLICIES.L4L;
+    if (!VALID_LOT_SIZING_POLICIES.has(policy)) {
+      throw new ValidationError(
+        `Item ${item.itemId} has invalid lotSizingPolicy "${item.lotSizingPolicy}". Must be one of L4L, FOQ, MOQ, ORDER_MULTIPLE.`
+      );
+    }
+
+    if (policy === LOT_SIZING_POLICIES.FOQ) {
+      if (!isPositiveFiniteNumber(item.fixedOrderQuantity)) {
+        throw new ValidationError(
+          `Item ${item.itemId} is configured with FOQ policy but has invalid fixedOrderQuantity (${item.fixedOrderQuantity}). Must be a number greater than zero.`
+        );
+      }
+    } else if (policy === LOT_SIZING_POLICIES.MOQ) {
+      if (!isPositiveFiniteNumber(item.minimumOrderQuantity)) {
+        throw new ValidationError(
+          `Item ${item.itemId} is configured with MOQ policy but has invalid minimumOrderQuantity (${item.minimumOrderQuantity}). Must be a number greater than zero.`
+        );
+      }
+    } else if (policy === LOT_SIZING_POLICIES.ORDER_MULTIPLE) {
+      if (!isPositiveFiniteNumber(item.orderMultiple)) {
+        throw new ValidationError(
+          `Item ${item.itemId} is configured with ORDER_MULTIPLE policy but has invalid orderMultiple (${item.orderMultiple}). Must be a number greater than zero.`
+        );
+      }
     }
   }
 }

@@ -53,7 +53,7 @@ function assertRecommendationInvariants(results, allocatedReqs) {
       (req) => req.salesOrderId === rec.salesOrderId && req.salesOrderLineId === rec.salesOrderLineId && req.itemId === rec.itemId
     );
     assert.ok(match, "Recommendation must map to an allocated requirement");
-    assert.equal(rec.quantity, match.remainingShortage, "quantity must equal remainingShortage");
+    assert.equal(rec.shortageQuantity, match.remainingShortage, "shortageQuantity must equal remainingShortage");
   }
 }
 
@@ -286,3 +286,52 @@ test("generateRecommendations - operates on narrow Planning DTOs without categor
   assert.equal("category" in items[0], false);
   assert.equal("itemType" in items[0], false);
 });
+
+// ============================================================================
+// 6. LOT SIZING POLICIES & MIXED POLICY INTEGRATION TESTS
+// ============================================================================
+
+test("generateRecommendations - mixed policy integration test (L4L, FOQ, MOQ, ORDER_MULTIPLE)", () => {
+  const items = [
+    { itemId: 101, itemCode: "ITEM-A", procurementType: "PURCHASE", lotSizingPolicy: "L4L" },
+    { itemId: 102, itemCode: "ITEM-B", procurementType: "PURCHASE", lotSizingPolicy: "FOQ", fixedOrderQuantity: 100 },
+    { itemId: 103, itemCode: "ITEM-C", procurementType: "PURCHASE", lotSizingPolicy: "MOQ", minimumOrderQuantity: 50 },
+    { itemId: 104, itemCode: "ITEM-D", procurementType: "PURCHASE", lotSizingPolicy: "ORDER_MULTIPLE", orderMultiple: 25 },
+  ];
+
+  const allocatedReqs = [
+    createAllocatedRequirement({ itemId: 101, remainingShortage: 37, salesOrderId: "SO-001", salesOrderLineId: 1 }),
+    createAllocatedRequirement({ itemId: 102, remainingShortage: 37, salesOrderId: "SO-002", salesOrderLineId: 1 }),
+    createAllocatedRequirement({ itemId: 103, remainingShortage: 18, salesOrderId: "SO-003", salesOrderLineId: 1 }),
+    createAllocatedRequirement({ itemId: 104, remainingShortage: 31, salesOrderId: "SO-004", salesOrderLineId: 1 }),
+  ];
+
+  const results = generateRecommendations(allocatedReqs, items);
+
+  assert.equal(results.length, 4);
+
+  // Item A (L4L): Shortage 37 -> Rec 37
+  const recA = results.find((r) => r.itemId === 101);
+  assert.ok(recA);
+  assert.equal(recA.shortageQuantity, 37);
+  assert.equal(recA.quantity, 37);
+
+  // Item B (FOQ 100): Shortage 37 -> Rec 100
+  const recB = results.find((r) => r.itemId === 102);
+  assert.ok(recB);
+  assert.equal(recB.shortageQuantity, 37);
+  assert.equal(recB.quantity, 100);
+
+  // Item C (MOQ 50): Shortage 18 -> Rec 50
+  const recC = results.find((r) => r.itemId === 103);
+  assert.ok(recC);
+  assert.equal(recC.shortageQuantity, 18);
+  assert.equal(recC.quantity, 50);
+
+  // Item D (ORDER_MULTIPLE 25): Shortage 31 -> Rec 50
+  const recD = results.find((r) => r.itemId === 104);
+  assert.ok(recD);
+  assert.equal(recD.shortageQuantity, 31);
+  assert.equal(recD.quantity, 50);
+});
+

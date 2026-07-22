@@ -43,7 +43,11 @@ model Item {
   reorderLevel      Int     @map("reorder_level")
   purchaseRate      Float   @map("purchase_rate")
   sellingPrice      Float?  @map("selling_price")
-  preferredSupplier String? @map("preferred_supplier")
+  procurementType     String? @map("procurement_type")
+  lotSizingPolicy     String? @default("L4L") @map("lot_sizing_policy")
+  fixedOrderQuantity  Int?    @map("fixed_order_quantity")
+  minimumOrderQuantity Int?   @map("minimum_order_quantity")
+  orderMultiple       Int?    @map("order_multiple")
 
   productionOrders   ProductionOrder[]
   bomHeaders         BOMHeader[]

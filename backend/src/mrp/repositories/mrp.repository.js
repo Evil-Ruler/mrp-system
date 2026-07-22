@@ -121,11 +121,19 @@ function toItemDomain(item) {
     }
   }
 
+  const lotSizingPolicy = (item.lotSizingPolicy && String(item.lotSizingPolicy).trim() !== "")
+    ? String(item.lotSizingPolicy).trim().toUpperCase()
+    : "L4L";
+
   return {
     itemId: item.itemId,
     itemCode: item.itemCode,
     baseUom: item.uom || item.baseUom,
     procurementType,
+    lotSizingPolicy,
+    fixedOrderQuantity: item.fixedOrderQuantity ?? undefined,
+    minimumOrderQuantity: item.minimumOrderQuantity ?? undefined,
+    orderMultiple: item.orderMultiple ?? undefined,
   };
 }
 
@@ -286,6 +294,11 @@ class MRPRepository {
           itemCode: true,
           category: true,
           uom: true,
+          procurementType: true,
+          lotSizingPolicy: true,
+          fixedOrderQuantity: true,
+          minimumOrderQuantity: true,
+          orderMultiple: true,
         },
       });
 

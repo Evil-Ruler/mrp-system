@@ -1,4 +1,5 @@
 const { PROCUREMENT_TYPES } = require("../constants/procurement.constants");
+const { calculateLotSize } = require("../policies/lotSizing/lotSizingCalculator");
 
 /** @typedef {import("../types/mrp.types").AllocatedRequirement} AllocatedRequirement */
 /** @typedef {import("../types/mrp.types").Item} Item */
@@ -7,17 +8,17 @@ const { PROCUREMENT_TYPES } = require("../constants/procurement.constants");
 /** @typedef {import("../types/mrp.types").Recommendation} Recommendation */
 
 /**
- * Converts Item Master Planning DTO records into an in-memory Map<ItemId, ProcurementType> for O(1) lookup.
+ * Converts Item Master Planning DTO records into an in-memory Map<ItemId, Item> for O(1) lookup.
  *
  * **Architectural & Boundary Guarantees**:
- * - Procurement Type Resolution: Reads each item's Planning DTO `procurementType` ("PURCHASE" vs "PRODUCTION").
+ * - O(1) Lookup: Indexes Item Planning DTO by numerical itemId.
  * - Zero Category Inspection: Does NOT inspect or require category or itemType.
  * - Upstream Validation: Planning validation (`planning.validation.js`) guarantees item master DTO integrity prior to engine execution.
  *
  * @param {Item[]} [items] Array of item master domain records
- * @returns {Map<ItemId, ProcurementType>} Map tracking procurement strategy per item ID
+ * @returns {Map<ItemId, Item>} Map tracking item planning configuration per item ID
  */
-function createProcurementLookup(items) {
+function createItemLookup(items) {
   const itemMap = new Map();
   if (!Array.isArray(items)) {
     return itemMap;
@@ -26,10 +27,7 @@ function createProcurementLookup(items) {
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     if (item && typeof item.itemId === "number") {
-      const type = item.procurementType === PROCUREMENT_TYPES.PRODUCTION
-        ? PROCUREMENT_TYPES.PRODUCTION
-        : PROCUREMENT_TYPES.PURCHASE;
-      itemMap.set(item.itemId, type);
+      itemMap.set(item.itemId, item);
     }
   }
 
@@ -39,13 +37,14 @@ function createProcurementLookup(items) {
 /**
  * Determines whether an unfulfilled shortage for an item requires a PURCHASE or PRODUCTION recommendation.
  *
- * @param {Map<ItemId, ProcurementType>} itemMap Item procurement lookup map
+ * @param {Map<ItemId, Item>} itemMap Item lookup map
  * @param {ItemId} itemId Item ID requiring supply
  * @returns {ProcurementType} Determined recommendation strategy
  */
 function determineRecommendationType(itemMap, itemId) {
-  if (itemMap && itemMap.has(itemId)) {
-    return itemMap.get(itemId);
+  const item = itemMap ? itemMap.get(itemId) : undefined;
+  if (item && item.procurementType === PROCUREMENT_TYPES.PRODUCTION) {
+    return PROCUREMENT_TYPES.PRODUCTION;
   }
   return PROCUREMENT_TYPES.PURCHASE;
 }
@@ -59,13 +58,15 @@ function determineRecommendationType(itemMap, itemId) {
  *
  * @param {AllocatedRequirement} allocatedReq Parent allocated requirement with remaining shortfall
  * @param {ProcurementType} recommendationType Derived recommendation type
+ * @param {number} lotSizedQuantity Calculated lot-sized order quantity
  * @returns {Recommendation} Freshly allocated Recommendation object
  */
-function createRecommendation(allocatedReq, recommendationType) {
+function createRecommendation(allocatedReq, recommendationType, lotSizedQuantity) {
   return {
     recommendationType,
     itemId: allocatedReq.itemId,
-    quantity: allocatedReq.remainingShortage,
+    shortageQuantity: allocatedReq.remainingShortage,
+    quantity: lotSizedQuantity,
     requiredDate: allocatedReq.requiredDate instanceof Date
       ? new Date(allocatedReq.requiredDate.getTime())
       : new Date(allocatedReq.requiredDate),
@@ -82,6 +83,8 @@ function createRecommendation(allocatedReq, recommendationType) {
  *
  * **Architectural & Business Guarantees**:
  * - Shortage Filtering: Recommendations are generated ONLY when `remainingShortage > 0`. Zero-shortage requirements are skipped.
+ * - Lot Sizing Integration: Recommended `quantity` is calculated according to each item's configured `lotSizingPolicy` (L4L, FOQ, MOQ, ORDER_MULTIPLE).
+ * - Lineage Auditability: Preserves `shortageQuantity` (raw unfulfilled net shortage) alongside `quantity` (lot-sized order quantity).
  * - Unaggregated Lineage Rule: Every unfulfilled demand line generates exactly ONE recommendation record. Recommendations are intentionally NEVER aggregated across sales orders or items to preserve end-to-end demand lineage.
  * - Centralized Domain Types: Consumes domain types imported from `mrp.types.js`.
  * - O(N) Time Complexity: Performs sequential iteration with O(1) map lookups.
@@ -89,7 +92,7 @@ function createRecommendation(allocatedReq, recommendationType) {
  * - Output Isolation: Returned array and `Recommendation` objects are newly allocated.
  *
  * @param {AllocatedRequirement[]} allocatedRequirements Allocated requirements from allocateSupply()
- * @param {Item[]} [items] Item master list containing procurementType configurations
+ * @param {Item[]} [items] Item master list containing procurementType and lot sizing configurations
  * @returns {Recommendation[]} Array of generated planning recommendations
  */
 function generateRecommendations(allocatedRequirements, items = []) {
@@ -97,7 +100,7 @@ function generateRecommendations(allocatedRequirements, items = []) {
     return [];
   }
 
-  const itemMap = createProcurementLookup(items);
+  const itemMap = createItemLookup(items);
   const results = [];
 
   for (let i = 0; i < allocatedRequirements.length; i++) {
@@ -107,12 +110,19 @@ function generateRecommendations(allocatedRequirements, items = []) {
       continue;
     }
 
+    const itemConfig = itemMap.get(req.itemId);
     const recommendationType = determineRecommendationType(itemMap, req.itemId);
-    results.push(createRecommendation(req, recommendationType));
+    const lotSizedQuantity = calculateLotSize(req.remainingShortage, itemConfig);
+
+    results.push(createRecommendation(req, recommendationType, lotSizedQuantity));
   }
 
   return results;
 }
+
+module.exports = {
+  generateRecommendations,
+};
 
 module.exports = {
   generateRecommendations,
