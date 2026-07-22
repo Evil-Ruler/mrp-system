@@ -402,3 +402,70 @@ test("generateRecommendations - mixed procurement integration test (PURCHASE 10d
   assert.equal(recProduction.isPastDue, false);
 });
 
+// ============================================================================
+// 8. ENTERPRISE POLICY INTERACTION INTEGRATION TEST
+// ============================================================================
+
+test("policy interaction integration test - Netting + Safety Stock + FOQ Lot Sizing + Lead Time", () => {
+  const { calculateInventoryNetting } = require("./inventoryNetting");
+  const { applySafetyStockPolicy } = require("../policies/safetyStock/safetyStockPolicy");
+  const { allocateSupply } = require("./supplyAllocation");
+
+  const planningDate = new Date("2026-08-01T00:00:00.000Z");
+
+  const item = {
+    itemId: 501,
+    itemCode: "ITEM-FOQ-SS",
+    procurementType: "PURCHASE",
+    purchaseLeadTimeDays: 7,
+    lotSizingPolicy: "FOQ",
+    fixedOrderQuantity: 100,
+    safetyStock: 20,
+  };
+
+  const inventory = [{ itemId: 501, availableQuantity: 100 }];
+  const grossReqs = [
+    {
+      demandSourceType: "SALES_ORDER",
+      salesOrderId: "SO-501",
+      salesOrderLineId: 1,
+      itemId: 501,
+      requiredQuantity: 95,
+      requiredDate: new Date("2026-08-10T00:00:00.000Z"),
+      bomLevel: 0,
+      path: [501],
+    },
+  ];
+
+  // Stage 2A: Inventory Netting (Demand Shortage)
+  // Stock = 100, Demand = 95 -> demandRequirement = 0, remainingStock = 5
+  const demandNet = calculateInventoryNetting(grossReqs, inventory);
+  assert.equal(demandNet[0].availableInventoryUsed, 95);
+  assert.equal(demandNet[0].netRequirement, 0);
+
+  // Stage 2B: Safety Stock Policy
+  // Buffer needed = 20, remainingStock = 5 -> safetyStockDeficit = 15 -> effectiveNetRequirement = 15
+  const effectiveNet = applySafetyStockPolicy(demandNet, inventory, [item]);
+  assert.equal(effectiveNet.length, 1);
+  assert.equal(effectiveNet[0].demandRequirement, 0);
+  assert.equal(effectiveNet[0].safetyStockDeficit, 15);
+  assert.equal(effectiveNet[0].netRequirement, 15);
+
+  // Stage 3: Supply Allocation
+  const allocated = allocateSupply(effectiveNet, [], []);
+  assert.equal(allocated[0].remainingShortage, 15);
+
+  // Stage 4: Recommendation Generation (FOQ 100 + Lead Time 7d)
+  const recommendations = generateRecommendations(allocated, [item], planningDate);
+
+  assert.equal(recommendations.length, 1);
+  const rec = recommendations[0];
+  assert.equal(rec.recommendationType, "PURCHASE");
+  assert.equal(rec.shortageQuantity, 15);
+  assert.equal(rec.quantity, 100); // Shortage 15 rounded up to FOQ batch of 100
+  assert.equal(rec.requiredDate.toISOString(), "2026-08-10T00:00:00.000Z");
+  assert.equal(rec.plannedReceiptDate.toISOString(), "2026-08-10T00:00:00.000Z");
+  assert.equal(rec.plannedReleaseDate.toISOString(), "2026-08-03T00:00:00.000Z");
+  assert.equal(rec.isPastDue, false);
+});
+

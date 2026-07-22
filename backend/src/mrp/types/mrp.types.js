@@ -79,6 +79,7 @@
  * @property {number} [orderMultiple] Order quantity rounding multiple (for ORDER_MULTIPLE)
  * @property {number} [purchaseLeadTimeDays=0] Purchase lead time in calendar days (for PURCHASE items)
  * @property {number} [manufacturingLeadTimeDays=0] In-house manufacturing lead time in calendar days (for PRODUCTION items)
+ * @property {number} [safetyStock=0] Fixed safety stock buffer threshold
  */
 
 // ============================================================================
@@ -100,8 +101,8 @@
  */
 
 /**
- * Net component shortfall derived during Stage 2 (Inventory Netting).
- * Calculated as: netRequirement = grossRequirement - availableInventoryUsed.
+ * Net component shortfall derived during Stage 2 (Inventory Netting & Safety Stock Policy).
+ * Calculated as: netRequirement = demandRequirement + safetyStockDeficit.
  *
  * @typedef {Object} NetRequirement
  * @property {DemandSourceType} demandSourceType Origin source type of demand
@@ -109,8 +110,10 @@
  * @property {SalesOrderLineId} salesOrderLineId Sales order line item sequence
  * @property {ItemId} itemId Component item ID
  * @property {Quantity} grossRequirement Total gross quantity required before stock netting (Stage 1 output)
- * @property {Quantity} availableInventoryUsed On-hand warehouse stock consumed (Stage 2 output)
- * @property {Quantity} netRequirement Unfulfilled shortfall after inventory netting (Stage 2 output)
+ * @property {Quantity} availableInventoryUsed On-hand warehouse stock consumed (Stage 2A output)
+ * @property {Quantity} [demandRequirement] Shortage quantity required strictly for sales demand
+ * @property {Quantity} [safetyStockDeficit] Buffer quantity required to restore safetyStock
+ * @property {Quantity} netRequirement Total effective net requirement (Stage 2B output)
  * @property {RequiredDate} requiredDate Date requirement is needed
  * @property {number} bomLevel Tree depth in BOM hierarchy
  * @property {number[]} path Traversal ancestor item path

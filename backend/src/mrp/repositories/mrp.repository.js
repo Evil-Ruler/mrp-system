@@ -136,6 +136,7 @@ function toItemDomain(item) {
     orderMultiple: item.orderMultiple ?? undefined,
     purchaseLeadTimeDays: typeof item.purchaseLeadTimeDays === "number" ? item.purchaseLeadTimeDays : 0,
     manufacturingLeadTimeDays: typeof item.manufacturingLeadTimeDays === "number" ? item.manufacturingLeadTimeDays : 0,
+    safetyStock: typeof item.safetyStock === "number" ? item.safetyStock : 0,
   };
 }
 
@@ -303,6 +304,7 @@ class MRPRepository {
           orderMultiple: true,
           purchaseLeadTimeDays: true,
           manufacturingLeadTimeDays: true,
+          safetyStock: true,
         },
       });
 

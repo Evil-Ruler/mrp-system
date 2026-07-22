@@ -105,6 +105,14 @@ function validateItems(items) {
         );
       }
     }
+
+    if (item.safetyStock !== undefined && item.safetyStock !== null) {
+      if (typeof item.safetyStock !== "number" || !Number.isInteger(item.safetyStock) || item.safetyStock < 0) {
+        throw new ValidationError(
+          `Item ${item.itemId} has invalid safetyStock (${item.safetyStock}). Must be a non-negative integer.`
+        );
+      }
+    }
   }
 }
 

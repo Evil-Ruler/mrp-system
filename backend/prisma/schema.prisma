@@ -50,6 +50,7 @@ model Item {
   orderMultiple       Int?    @map("order_multiple")
   purchaseLeadTimeDays Int?   @default(0) @map("purchase_lead_time_days")
   manufacturingLeadTimeDays Int? @default(0) @map("manufacturing_lead_time_days")
+  safetyStock             Int?    @default(0) @map("safety_stock")
 
   productionOrders   ProductionOrder[]
   bomHeaders         BOMHeader[]
