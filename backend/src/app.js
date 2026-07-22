@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 
 const salesRoutes = require("./sales");
+const bomRoutes = require("./bom");
 
 const app = express();
 
@@ -12,7 +13,7 @@ app.get("/", (req, res) => {
   res.send("MRP Backend Running");
 });
 
-// Mount Sales routes
 app.use("/api", salesRoutes);
+app.use("/api", bomRoutes);
 
 module.exports = app;
