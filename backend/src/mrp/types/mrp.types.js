@@ -164,4 +164,20 @@
  * @property {number[]} path Traversal ancestor item path
  */
 
+/**
+ * Immutable value object encapsulating all read-only planning inputs and pre-indexed lookups
+ * for a single deterministic MRP execution run.
+ *
+ * @typedef {Object} PlanningContext
+ * @property {Date} planningDate Injected MRP execution run date
+ * @property {Demand[]} demand Deterministically sorted demand lines
+ * @property {Item[]} items Item master planning DTO records
+ * @property {BomHeader[]} bom BOM header and line item structures
+ * @property {InventoryRecord[]} inventory Warehouse inventory stock balances
+ * @property {SupplyRecord[]} purchaseOrders Open Purchase Order lines
+ * @property {SupplyRecord[]} productionOrders Open Production Orders
+ * @property {Map<number, Item>} itemMap Fast numerical lookup index for Item DTOs
+ * @property {Map<number, number>} inventorySnapshot Fast lookup index for available stock
+ */
+
 module.exports = {};

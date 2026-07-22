@@ -143,36 +143,36 @@ class MRPService {
     const { demand, items, bom, inventory, purchaseOrders, productionOrders } = rawData;
 
     // Step 2: Pure Invariant Validation
-    validateItems(items);
-    validateDemand(demand);
-    validateBom(bom, demand, items);
+    validateItems(rawData.items);
+    validateDemand(rawData.demand);
+    validateBom(rawData.bom, rawData.demand, rawData.items);
 
-    const sortedDemand = sortDemand(demand);
+    // Step 3: Planning Context Construction Stage
+    const context = this._buildPlanningContext(rawData, planningDate);
 
-    // Step 3: BOM Explosion (Gross Requirements)
+    // Step 4: BOM Explosion (Stage 1: Gross Requirements)
     const explodedRequirements = explodeBom(
       {
-        demand: sortedDemand,
-        bom,
-        items,
+        demand: context.demand,
+        bom: context.bom,
+        items: context.items,
       },
       { maxResults: MAX_EXPLODED_REQUIREMENTS }
     );
 
-    // Step 4: Inventory Snapshot Creation, Inventory Netting (Stage 2A) & Safety Stock Policy (Stage 2B)
-    const inventorySnapshot = createInventorySnapshot(inventory);
-    const demandNetRequirements = calculateInventoryNetting(explodedRequirements, inventorySnapshot);
-    const netRequirements = applySafetyStockPolicy(demandNetRequirements, inventory, items);
+    // Step 5: Inventory Netting (Stage 2A) & Safety Stock Policy (Stage 2B)
+    const demandNetRequirements = calculateInventoryNetting(explodedRequirements, context.inventorySnapshot);
+    const netRequirements = applySafetyStockPolicy(demandNetRequirements, context.inventory, context.items);
 
-    // Step 5: Supply Allocation (Allocated Requirements)
-    const allocatedRequirements = allocateSupply(netRequirements, purchaseOrders, productionOrders);
+    // Step 6: Supply Allocation (Stage 3: Open Orders Allocation)
+    const allocatedRequirements = allocateSupply(netRequirements, context.purchaseOrders, context.productionOrders);
 
-    // Step 6: Recommendation Generation (Action Recommendations with Lot Sizing & Lead Time Scheduling)
-    const recommendations = generateRecommendations(allocatedRequirements, items, planningDate);
+    // Step 7: Recommendation Generation (Stage 4A Lot Sizing, 4B Order Modifiers, 4C Lead Time Scheduling)
+    const recommendations = generateRecommendations(allocatedRequirements, context.items, context.planningDate);
 
-    // Step 7: Summary & Structured Output
+    // Step 8: Planning Summary Assembly & Structured Output
     const summary = this._buildPlanningSummary(
-      sortedDemand,
+      context.demand,
       explodedRequirements,
       netRequirements,
       allocatedRequirements,
@@ -180,14 +180,38 @@ class MRPService {
     );
 
     return {
-      planningDate,
-      salesOrders: sortedDemand,
+      planningDate: context.planningDate,
+      salesOrders: context.demand,
       explodedRequirements,
       netRequirements,
       allocatedRequirements,
       recommendations,
       summary,
     };
+  }
+
+  /**
+   * Assembles an immutable PlanningContext value object for an execution run.
+   *
+   * @param {Object} rawData Raw loaded dataset
+   * @param {Date} planningDate Execution run date
+   * @returns {import("../types/mrp.types").PlanningContext} Immutable planning context
+   */
+  _buildPlanningContext(rawData, planningDate) {
+    const { demand, items, bom, inventory, purchaseOrders, productionOrders } = rawData || {};
+    const sortedDemand = sortDemand(demand || []);
+    const inventorySnapshot = createInventorySnapshot(inventory || []);
+
+    return Object.freeze({
+      planningDate,
+      demand: sortedDemand,
+      items: Array.isArray(items) ? Object.freeze([...items]) : [],
+      bom: bom || { headers: [], lines: [] },
+      inventory: Array.isArray(inventory) ? Object.freeze([...inventory]) : [],
+      purchaseOrders: Array.isArray(purchaseOrders) ? Object.freeze([...purchaseOrders]) : [],
+      productionOrders: Array.isArray(productionOrders) ? Object.freeze([...productionOrders]) : [],
+      inventorySnapshot,
+    });
   }
 
   /**
