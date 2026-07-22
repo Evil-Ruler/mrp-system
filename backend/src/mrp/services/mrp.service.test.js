@@ -324,8 +324,8 @@ test("runPlanning - generates fully reconciled summary for zero shortages vs act
     lines: [{ bomLineId: 1, bomHeaderId: "BOM-101", parentItemId: 101, childItemId: 201, qtyPerParent: 2 }],
   });
 
-  // Stock completely fulfills gross requirement (10 FG -> 20 RM)
-  repository.getInventory = async () => [{ itemId: 201, availableQuantity: 50 }];
+  // Finished-good stock fully covers demand, so traversal must not create child demand.
+  repository.getInventory = async () => [{ itemId: 101, availableQuantity: 50 }];
   repository.getOpenPurchaseOrders = async () => [];
   repository.getOpenProductionOrders = async () => [];
 

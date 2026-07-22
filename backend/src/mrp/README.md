@@ -58,7 +58,7 @@ MRP Engine (recommendationGenerator.js)
 | **Repository** | `repositories/mrp.repository.js` | Prisma ORM data access, persistence integrity validation (throwing `DataAccessError` on corrupted persistence data), invokes `ProcurementTypeResolver`, and emits pure Planning DTOs. |
 | **Policy Resolver** | `policies/procurementTypeResolver.js` | Pure function resolving legacy item categories to domain `procurementType` (`PURCHASE` vs `PRODUCTION`) using `CATEGORY_TO_PROCUREMENT`. Contains zero persistence or validation logic. |
 | **Planning Validation** | `validation/planning.validation.js` | Domain-level invariant validation on Planning DTOs (validating `procurementType` via `VALID_PROCUREMENT_TYPES.has()`, item master integrity, demand completeness, BOM structural correctness). |
-| **Engine** | `engine/*.js` | Four pure-function pipeline stages: BOM Explosion, Inventory Netting, Supply Allocation, Recommendation Generation. Never inspects item categories or `itemType`. |
+| **Engine** | `engine/*.js` | Planned-order traversal plus pure inventory, safety-stock, supply, lot-sizing, modifier, and scheduling policies. Never inspects item categories or `itemType`. |
 | **Types** | `types/mrp.types.js` | Centralized JSDoc domain type contracts consumed by all pipeline stages. |
 | **Errors** | `errors/mrp.errors.js` | Domain error classes (`ValidationError`, `DataAccessError`). |
 | **Constants** | `constants/procurement.constants.js`, `constants/procurementPolicy.constants.js`, `constants/planning.constants.js` | Immutable planning enums, valid sets (`VALID_PROCUREMENT_TYPES`), and legacy category compatibility matrix (`CATEGORY_TO_PROCUREMENT`). |
@@ -111,8 +111,10 @@ src/mrp/
 │   └── mrp.repository.test.js                  # Repository tests
 │
 ├── engine/
-│   ├── bomExplosion.js                         # Stage 1: Multi-level BOM explosion
+│   ├── bomExplosion.js                         # Legacy full-recursive BOM explosion helper
 │   ├── bomExplosion.test.js                    # BOM explosion tests
+│   ├── childRequirementBuilder.js              # Immediate children from a planned production order
+│   ├── plannedOrderTraversal.js                # V1 planned-order-driven recursion
 │   ├── inventoryNetting.js                     # Stage 2: Inventory stock netting
 │   ├── inventoryNetting.test.js                # Inventory netting tests
 │   ├── supplyAllocation.js                     # Stage 3: Open supply allocation
@@ -134,7 +136,7 @@ src/mrp/
 
 ---
 
-## 4. Planning Pipeline (6 Stages)
+## 4. Planning Pipeline
 
 ### Pipeline Execution Flow
 
@@ -155,18 +157,11 @@ runPlanning(filters)
     │   ├── validateBom(bom, demand, items)  (BOM ambiguity, demanded finished goods empty BOMs, orphan lines, Number.isFinite on qtyPerParent)
     │   └── sortDemand(demand)              → Demand[] (sorted)
     │
-    ├── Stage 1: BOM Explosion
-    │   └── explodeBom({ demand, bom, items })  → ExplodedRequirement[]
-    │
-    ├── Stage 2: Inventory Snapshot & Netting
-    │   ├── createInventorySnapshot(inventory)              → InventoryRecord[]
-    │   └── calculateInventoryNetting(exploded, snapshot)   → NetRequirement[]
-    │
-    ├── Stage 3: Supply Allocation
-    │   └── allocateSupply(netReqs, purchaseOrders, productionOrders)  → AllocatedRequirement[]
-    │
-    ├── Stage 4: Recommendation Generation
-    │   └── generateRecommendations(allocatedReqs, items)  → Recommendation[]
+    ├── Planned-order traversal, once for each demand or generated child requirement
+    │   ├── inventory netting + safety stock + supply allocation
+    │   ├── lot sizing + modifiers + backward scheduling
+    │   ├── generate recommendation
+    │   └── for PRODUCTION only, create direct children from final planned quantity
     │
     └── Stage 5: Summary & Output
         └── _buildPlanningSummary(...)  → PlanningSummary
@@ -174,16 +169,17 @@ runPlanning(filters)
 
 ### Stage Details
 
-#### Stage 1 — BOM Explosion (`bomExplosion.js`)
+#### Planned-Order Traversal (`plannedOrderTraversal.js`)
 
-Recursively traverses Bill of Materials hierarchies to convert finished-good demand into component-level gross requirements.
+Sales demand is processed as a finished-good requirement. Inventory, safety stock, open supply, lot sizing, order modifiers, and scheduling are applied before any BOM children are created. A production recommendation then creates only its direct child requirements using its final quantity and planned release date; purchase recommendations terminate traversal.
 
 - **Input**: Sorted demand lines, BOM headers/lines, item master
 - **Output**: `ExplodedRequirement[]` — one record per component per demand line per BOM level
 - **Key behaviors**:
-  - Multi-level recursive traversal with depth tracking (`bomLevel`)
-  - O(1) cycle detection via `visitedSet` per demand traversal
-  - Quantity cascading: `parentQty × qtyPerParent` at each level
+  - Parent inventory and eligible supply suppress child explosion when no production order is needed
+  - Quantity cascading uses final planned production quantity (`plannedQty × qtyPerParent`)
+  - Child required date equals the parent planned release date
+  - Finished-good shortages produce production recommendations before child explosion
   - Ancestor path tracking (`path[]`) for traceability
   - Root finished goods are never emitted in output
   - Output is deterministically sorted by: `requiredDate` → `bomLevel` → `itemId` → `salesOrderId` → `salesOrderLineId`

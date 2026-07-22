@@ -6,12 +6,8 @@ const {
   validateBom,
   sortDemand,
 } = require("../validation/planning.validation");
-const { explodeBom } = require("../engine/bomExplosion");
 const { createInventorySnapshot } = require("../engine/inventorySnapshot");
-const { calculateInventoryNetting } = require("../engine/inventoryNetting");
-const { applySafetyStockPolicy } = require("../policies/safetyStock/safetyStockPolicy");
-const { allocateSupply } = require("../engine/supplyAllocation");
-const { generateRecommendations } = require("../engine/recommendationGenerator");
+const { traversePlannedOrders } = require("../engine/plannedOrderTraversal");
 
 /** @typedef {import("../types/mrp.types").Demand} Demand */
 /** @typedef {import("../types/mrp.types").BomHeader} BomHeader */
@@ -118,7 +114,7 @@ class MRPService {
 
   /**
    * Orchestrates the complete MRP planning engine pipeline:
-   * Data Loading -> Validation -> BOM Explosion -> Inventory Netting -> Supply Allocation -> Recommendation Generation.
+   * Data Loading -> Validation -> Planned Order Traversal -> Recommendation Generation.
    *
    * @param {{salesOrderIds?: string[], statuses?: string[], requiredDateFrom?: string|Date, requiredDateTo?: string|Date}} [filters]
    * @returns {Promise<PlanningResult>} Structured MRP planning execution result
@@ -150,25 +146,14 @@ class MRPService {
     // Step 3: Planning Context Construction Stage
     const context = this._buildPlanningContext(rawData, planningDate);
 
-    // Step 4: BOM Explosion (Stage 1: Gross Requirements)
-    const explodedRequirements = explodeBom(
-      {
-        demand: context.demand,
-        bom: context.bom,
-        items: context.items,
-      },
-      { maxResults: MAX_EXPLODED_REQUIREMENTS }
-    );
-
-    // Step 5: Inventory Netting (Stage 2A) & Safety Stock Policy (Stage 2B)
-    const demandNetRequirements = calculateInventoryNetting(explodedRequirements, context.inventorySnapshot);
-    const netRequirements = applySafetyStockPolicy(demandNetRequirements, context.inventory, context.items);
-
-    // Step 6: Supply Allocation (Stage 3: Open Orders Allocation)
-    const allocatedRequirements = allocateSupply(netRequirements, context.purchaseOrders, context.productionOrders);
-
-    // Step 7: Recommendation Generation (Stage 4A Lot Sizing, 4B Order Modifiers, 4C Lead Time Scheduling)
-    const recommendations = generateRecommendations(allocatedRequirements, context.items, context.planningDate);
+    // Step 4: Planned-order-driven traversal. Components are created only when
+    // their parent production recommendation survives all netting and policies.
+    const {
+      explodedRequirements,
+      netRequirements,
+      allocatedRequirements,
+      recommendations,
+    } = traversePlannedOrders(context, { maxResults: MAX_EXPLODED_REQUIREMENTS });
 
     // Step 8: Planning Summary Assembly & Structured Output
     const summary = this._buildPlanningSummary(

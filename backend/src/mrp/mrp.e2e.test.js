@@ -86,42 +86,47 @@ test("E2E - Complete happy path manufacturing workflow through all 6 pipeline st
   assert.ok(result.planningDate instanceof Date);
   assert.equal(result.salesOrders.length, 1);
 
-  // 2. Stage 1: Explosion (10 FG -> 20 SA -> 100 RM)
-  assert.equal(result.explodedRequirements.length, 2);
+  // 2. Planned-order traversal includes the FG, then only components required
+  // by surviving production recommendations.
+  assert.equal(result.explodedRequirements.length, 3);
 
-  // 3. Stage 2: Netting (SA: 20 gross - 5 inv = 15 net | RM: 100 gross - 20 inv = 80 net)
-  assert.equal(result.netRequirements.length, 2);
+  // 3. Stage 2: FG is planned first; the 5 open SA units suppress half of the
+  // sub-assembly production, so only 50 RM are required downstream.
+  assert.equal(result.netRequirements.length, 3);
   const saNet = result.netRequirements.find((r) => r.itemId === 2000);
   const rmNet = result.netRequirements.find((r) => r.itemId === 3000);
   assert.equal(saNet.netRequirement, 15);
-  assert.equal(rmNet.netRequirement, 80);
+  assert.equal(rmNet.netRequirement, 30);
 
-  // 4. Stage 3: Allocation (SA: 15 net - 5 MO = 10 shortage | RM: 80 net - 10 PO = 70 shortage)
-  assert.equal(result.allocatedRequirements.length, 2);
+  // 4. Stage 3: Allocation is applied to each recursively planned requirement.
+  assert.equal(result.allocatedRequirements.length, 3);
   const saAlloc = result.allocatedRequirements.find((r) => r.itemId === 2000);
   const rmAlloc = result.allocatedRequirements.find((r) => r.itemId === 3000);
   assert.equal(saAlloc.remainingShortage, 10);
-  assert.equal(rmAlloc.remainingShortage, 70);
+  assert.equal(rmAlloc.remainingShortage, 20);
 
   // 5. Stage 4: Recommendations
-  assert.equal(result.recommendations.length, 2);
+  assert.equal(result.recommendations.length, 3);
+  const fgRec = result.recommendations.find((r) => r.itemId === 1000);
   const saRec = result.recommendations.find((r) => r.itemId === 2000);
   const rmRec = result.recommendations.find((r) => r.itemId === 3000);
+  assert.equal(fgRec.recommendationType, "PRODUCTION");
+  assert.equal(fgRec.quantity, 10);
   assert.equal(saRec.recommendationType, "PRODUCTION");
   assert.equal(saRec.quantity, 10);
   assert.equal(rmRec.recommendationType, "PURCHASE");
-  assert.equal(rmRec.quantity, 70);
+  assert.equal(rmRec.quantity, 20);
 
   // 6. Summary Validation
   assert.deepEqual(result.summary, {
     salesOrderCount: 1,
-    explodedRequirementCount: 2,
-    netRequirementCount: 2,
-    allocatedRequirementCount: 2,
-    recommendationCount: 2,
+    explodedRequirementCount: 3,
+    netRequirementCount: 3,
+    allocatedRequirementCount: 3,
+    recommendationCount: 3,
     purchaseRecommendationCount: 1,
-    productionRecommendationCount: 1,
-    totalShortageQuantity: 80,
+    productionRecommendationCount: 2,
+    totalShortageQuantity: 40,
   });
 });
 
@@ -151,13 +156,12 @@ test("E2E - Multiple sales orders preserve distinct unaggregated lineage", async
 
   const result = await mrpService.runPlanning();
 
-  assert.equal(result.recommendations.length, 2);
+  assert.equal(result.recommendations.length, 4);
 
-  // Assert distinct lineage for SO-1 vs SO-2
-  assert.equal(result.recommendations[0].salesOrderId, "SO-1");
-  assert.equal(result.recommendations[0].quantity, 10); // 5 * 2
-  assert.equal(result.recommendations[1].salesOrderId, "SO-2");
-  assert.equal(result.recommendations[1].quantity, 20); // 10 * 2
+  const so1 = result.recommendations.filter((r) => r.salesOrderId === "SO-1");
+  const so2 = result.recommendations.filter((r) => r.salesOrderId === "SO-2");
+  assert.deepEqual(so1.map((r) => r.quantity), [5, 10]);
+  assert.deepEqual(so2.map((r) => r.quantity), [10, 20]);
 });
 
 // ============================================================================
@@ -194,9 +198,8 @@ test("E2E - Shared component demand across different finished goods", async () =
 
   const result = await mrpService.runPlanning();
 
-  assert.equal(result.recommendations.length, 2);
-  assert.equal(result.recommendations[0].quantity, 5); // (20 - 15)
-  assert.equal(result.recommendations[1].quantity, 15); // (15 - 0)
+  assert.equal(result.recommendations.length, 4);
+  assert.deepEqual(result.recommendations.map((r) => r.quantity), [2, 5, 3, 15]);
 });
 
 // ============================================================================
@@ -234,7 +237,7 @@ test("E2E - 4-level deep BOM hierarchy preserves bomLevel and path ancestry", as
 
   const result = await mrpService.runPlanning();
 
-  assert.equal(result.explodedRequirements.length, 3);
+  assert.equal(result.explodedRequirements.length, 4);
   const rmReq = result.explodedRequirements.find((r) => r.itemId === 4);
   assert.equal(rmReq.requiredQuantity, 24); // 1 * 2 * 3 * 4
   assert.equal(rmReq.bomLevel, 3);
@@ -258,7 +261,7 @@ test("E2E - Full inventory coverage suppresses all recommendations", async () =>
     lines: [{ bomLineId: 1, bomHeaderId: "BOM-100", parentItemId: 100, childItemId: 200, qtyPerParent: 2 }],
   });
 
-  repository.getInventory = async () => [{ itemId: 200, availableQuantity: 100 }];
+  repository.getInventory = async () => [{ itemId: 100, availableQuantity: 100 }];
   repository.getOpenPurchaseOrders = async () => [];
   repository.getOpenProductionOrders = async () => [];
 
@@ -293,7 +296,7 @@ test("E2E - Open purchase and production orders eliminate remaining shortages", 
   });
 
   repository.getInventory = async () => [];
-  repository.getOpenProductionOrders = async () => [{ productionOrderId: "MO-1", itemId: 200, openQuantity: 20, expectedDate: new Date("2026-08-01") }];
+  repository.getOpenProductionOrders = async () => [{ productionOrderId: "MO-1", itemId: 100, openQuantity: 10, expectedDate: new Date("2026-08-01") }];
   repository.getOpenPurchaseOrders = async () => [{ purchaseOrderId: "PO-1", itemId: 300, openQuantity: 100, expectedDate: new Date("2026-08-01") }];
 
   const result = await mrpService.runPlanning();
@@ -326,15 +329,15 @@ test("E2E - Mixed supply sources enforce strict priority (Inventory -> PO -> MO 
 
   const result = await mrpService.runPlanning();
 
-  const alloc = result.allocatedRequirements[0];
+  const alloc = result.allocatedRequirements.find((entry) => entry.itemId === 200);
   assert.equal(alloc.grossRequirement, 100);
   assert.equal(alloc.availableInventoryUsed, 30);
   assert.equal(alloc.purchaseSupplyUsed, 40);
   assert.equal(alloc.productionSupplyUsed, 20);
   assert.equal(alloc.remainingShortage, 10);
 
-  assert.equal(result.recommendations.length, 1);
-  assert.equal(result.recommendations[0].quantity, 10);
+  assert.equal(result.recommendations.length, 2);
+  assert.equal(result.recommendations.find((r) => r.itemId === 200).quantity, 10);
 });
 
 // ============================================================================
@@ -360,9 +363,10 @@ test("E2E - No supply available generates 100% shortage recommendations", async 
 
   const result = await mrpService.runPlanning();
 
-  assert.equal(result.recommendations.length, 1);
-  assert.equal(result.recommendations[0].quantity, 50);
-  assert.equal(result.summary.totalShortageQuantity, 50);
+  assert.equal(result.recommendations.length, 2);
+  assert.equal(result.recommendations.find((r) => r.itemId === 100).quantity, 10);
+  assert.equal(result.recommendations.find((r) => r.itemId === 200).quantity, 50);
+  assert.equal(result.summary.totalShortageQuantity, 60);
 });
 
 test("E2E - Stops planning immediately when demanded item has no BOM", async () => {
@@ -429,7 +433,7 @@ test("E2E - Preserves complete demand lineage and reconciles summary metrics", a
 
   const result = await mrpService.runPlanning();
 
-  const rec = result.recommendations[0];
+  const rec = result.recommendations.find((r) => r.itemId === 200);
   assert.equal(rec.salesOrderId, "SO-888");
   assert.equal(rec.salesOrderLineId, 5);
   assert.equal(rec.requiredDate.toISOString(), new Date("2026-09-01").toISOString());
@@ -438,7 +442,7 @@ test("E2E - Preserves complete demand lineage and reconciles summary metrics", a
 
   // Reconciliation Check
   assert.equal(result.summary.recommendationCount, result.recommendations.length);
-  assert.equal(result.summary.totalShortageQuantity, rec.quantity);
+  assert.equal(result.summary.totalShortageQuantity, 22);
 });
 
 // ============================================================================
@@ -538,8 +542,8 @@ test("E2E - High volume performance stress verification (100 demands, multi-leve
   const result = await mrpService.runPlanning();
   const duration = Date.now() - start;
 
-  assert.equal(result.explodedRequirements.length, 200);
-  assert.equal(result.recommendations.length, 200);
+  assert.equal(result.explodedRequirements.length, 300);
+  assert.equal(result.recommendations.length, 300);
   assert.ok(duration < 200, `Expected runPlanning to complete in < 200ms, took ${duration}ms`);
 });
 
