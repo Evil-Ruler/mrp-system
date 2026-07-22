@@ -134,6 +134,8 @@ function toItemDomain(item) {
     fixedOrderQuantity: item.fixedOrderQuantity ?? undefined,
     minimumOrderQuantity: item.minimumOrderQuantity ?? undefined,
     orderMultiple: item.orderMultiple ?? undefined,
+    purchaseLeadTimeDays: typeof item.purchaseLeadTimeDays === "number" ? item.purchaseLeadTimeDays : 0,
+    manufacturingLeadTimeDays: typeof item.manufacturingLeadTimeDays === "number" ? item.manufacturingLeadTimeDays : 0,
   };
 }
 
@@ -299,6 +301,8 @@ class MRPRepository {
           fixedOrderQuantity: true,
           minimumOrderQuantity: true,
           orderMultiple: true,
+          purchaseLeadTimeDays: true,
+          manufacturingLeadTimeDays: true,
         },
       });
 

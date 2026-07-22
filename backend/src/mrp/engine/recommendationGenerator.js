@@ -1,5 +1,6 @@
 const { PROCUREMENT_TYPES } = require("../constants/procurement.constants");
 const { calculateLotSize } = require("../policies/lotSizing/lotSizingCalculator");
+const { calculateSchedule } = require("../policies/scheduling/schedulingCalculator");
 
 /** @typedef {import("../types/mrp.types").AllocatedRequirement} AllocatedRequirement */
 /** @typedef {import("../types/mrp.types").Item} Item */
@@ -53,23 +54,25 @@ function determineRecommendationType(itemMap, itemId) {
  * Factory function creating an immutable Recommendation record preserving end-to-end demand lineage.
  *
  * **Immutability Safeguards**:
- * - Date Instance Isolation: Clones `requiredDate` into a fresh `Date` object preventing reference leakage.
+ * - Date Instance Isolation: Clones date instances preventing reference leakage.
  * - Path Array Copying: Deep-copies the traversal `path` array so output record modifications do not contaminate input arrays.
  *
  * @param {AllocatedRequirement} allocatedReq Parent allocated requirement with remaining shortfall
  * @param {ProcurementType} recommendationType Derived recommendation type
  * @param {number} lotSizedQuantity Calculated lot-sized order quantity
+ * @param {{requiredDate: Date, plannedReceiptDate: Date, plannedReleaseDate: Date, isPastDue: boolean}} scheduleDates Backward scheduling dates
  * @returns {Recommendation} Freshly allocated Recommendation object
  */
-function createRecommendation(allocatedReq, recommendationType, lotSizedQuantity) {
+function createRecommendation(allocatedReq, recommendationType, lotSizedQuantity, scheduleDates) {
   return {
     recommendationType,
     itemId: allocatedReq.itemId,
     shortageQuantity: allocatedReq.remainingShortage,
     quantity: lotSizedQuantity,
-    requiredDate: allocatedReq.requiredDate instanceof Date
-      ? new Date(allocatedReq.requiredDate.getTime())
-      : new Date(allocatedReq.requiredDate),
+    requiredDate: scheduleDates.requiredDate,
+    plannedReceiptDate: scheduleDates.plannedReceiptDate,
+    plannedReleaseDate: scheduleDates.plannedReleaseDate,
+    isPastDue: scheduleDates.isPastDue,
     demandSourceType: allocatedReq.demandSourceType || "SALES_ORDER",
     salesOrderId: allocatedReq.salesOrderId,
     salesOrderLineId: allocatedReq.salesOrderLineId,
@@ -84,6 +87,7 @@ function createRecommendation(allocatedReq, recommendationType, lotSizedQuantity
  * **Architectural & Business Guarantees**:
  * - Shortage Filtering: Recommendations are generated ONLY when `remainingShortage > 0`. Zero-shortage requirements are skipped.
  * - Lot Sizing Integration: Recommended `quantity` is calculated according to each item's configured `lotSizingPolicy` (L4L, FOQ, MOQ, ORDER_MULTIPLE).
+ * - Lead Time Backward Scheduling: Backward schedules `plannedReleaseDate` based on `purchaseLeadTimeDays` or `manufacturingLeadTimeDays`.
  * - Lineage Auditability: Preserves `shortageQuantity` (raw unfulfilled net shortage) alongside `quantity` (lot-sized order quantity).
  * - Unaggregated Lineage Rule: Every unfulfilled demand line generates exactly ONE recommendation record. Recommendations are intentionally NEVER aggregated across sales orders or items to preserve end-to-end demand lineage.
  * - Centralized Domain Types: Consumes domain types imported from `mrp.types.js`.
@@ -92,10 +96,11 @@ function createRecommendation(allocatedReq, recommendationType, lotSizedQuantity
  * - Output Isolation: Returned array and `Recommendation` objects are newly allocated.
  *
  * @param {AllocatedRequirement[]} allocatedRequirements Allocated requirements from allocateSupply()
- * @param {Item[]} [items] Item master list containing procurementType and lot sizing configurations
+ * @param {Item[]} [items] Item master list containing procurementType, lot sizing, and lead time configurations
+ * @param {Date} [planningDate] MRP execution run date injected by MRPService
  * @returns {Recommendation[]} Array of generated planning recommendations
  */
-function generateRecommendations(allocatedRequirements, items = []) {
+function generateRecommendations(allocatedRequirements, items = [], planningDate) {
   if (!Array.isArray(allocatedRequirements) || allocatedRequirements.length === 0) {
     return [];
   }
@@ -113,8 +118,9 @@ function generateRecommendations(allocatedRequirements, items = []) {
     const itemConfig = itemMap.get(req.itemId);
     const recommendationType = determineRecommendationType(itemMap, req.itemId);
     const lotSizedQuantity = calculateLotSize(req.remainingShortage, itemConfig);
+    const scheduleDates = calculateSchedule(req.requiredDate, itemConfig, planningDate);
 
-    results.push(createRecommendation(req, recommendationType, lotSizedQuantity));
+    results.push(createRecommendation(req, recommendationType, lotSizedQuantity, scheduleDates));
   }
 
   return results;

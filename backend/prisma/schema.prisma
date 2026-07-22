@@ -48,6 +48,8 @@ model Item {
   fixedOrderQuantity  Int?    @map("fixed_order_quantity")
   minimumOrderQuantity Int?   @map("minimum_order_quantity")
   orderMultiple       Int?    @map("order_multiple")
+  purchaseLeadTimeDays Int?   @default(0) @map("purchase_lead_time_days")
+  manufacturingLeadTimeDays Int? @default(0) @map("manufacturing_lead_time_days")
 
   productionOrders   ProductionOrder[]
   bomHeaders         BOMHeader[]

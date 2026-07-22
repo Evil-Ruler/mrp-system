@@ -46,6 +46,9 @@ function assertRecommendationInvariants(results, allocatedReqs) {
       `Invalid recommendationType: ${rec.recommendationType}`
     );
     assert.ok(rec.requiredDate instanceof Date, "requiredDate must be a Date instance");
+    assert.ok(rec.plannedReceiptDate instanceof Date, "plannedReceiptDate must be a Date instance");
+    assert.ok(rec.plannedReleaseDate instanceof Date, "plannedReleaseDate must be a Date instance");
+    assert.equal(typeof rec.isPastDue, "boolean", "isPastDue must be a boolean");
     assert.ok(Array.isArray(rec.path) && rec.path.length > 0, "path must be a non-empty array");
 
     // Match parent allocated requirement
@@ -333,5 +336,69 @@ test("generateRecommendations - mixed policy integration test (L4L, FOQ, MOQ, OR
   assert.ok(recD);
   assert.equal(recD.shortageQuantity, 31);
   assert.equal(recD.quantity, 50);
+});
+
+// ============================================================================
+// 7. LEAD TIME BACKWARD SCHEDULING & MIXED PROCUREMENT INTEGRATION TEST
+// ============================================================================
+
+test("generateRecommendations - mixed procurement integration test (PURCHASE 10d vs PRODUCTION 5d)", () => {
+  const planningDate = new Date("2026-08-01T00:00:00.000Z");
+
+  const items = [
+    {
+      itemId: 201,
+      itemCode: "RAW-BOLT",
+      procurementType: "PURCHASE",
+      purchaseLeadTimeDays: 10,
+      manufacturingLeadTimeDays: 0,
+    },
+    {
+      itemId: 202,
+      itemCode: "ASSEMBLY-GEAR",
+      procurementType: "PRODUCTION",
+      purchaseLeadTimeDays: 0,
+      manufacturingLeadTimeDays: 5,
+    },
+  ];
+
+  const allocatedReqs = [
+    createAllocatedRequirement({
+      itemId: 201,
+      remainingShortage: 100,
+      requiredDate: new Date("2026-08-15T00:00:00.000Z"),
+      salesOrderId: "SO-PURCHASE",
+      salesOrderLineId: 1,
+    }),
+    createAllocatedRequirement({
+      itemId: 202,
+      remainingShortage: 50,
+      requiredDate: new Date("2026-08-20T00:00:00.000Z"),
+      salesOrderId: "SO-PRODUCTION",
+      salesOrderLineId: 1,
+    }),
+  ];
+
+  const results = generateRecommendations(allocatedReqs, items, planningDate);
+
+  assert.equal(results.length, 2);
+
+  // Item 201: PURCHASE with 10d lead time. Required 15 Aug -> Release 5 Aug
+  const recPurchase = results.find((r) => r.itemId === 201);
+  assert.ok(recPurchase);
+  assert.equal(recPurchase.recommendationType, "PURCHASE");
+  assert.equal(recPurchase.requiredDate.toISOString(), "2026-08-15T00:00:00.000Z");
+  assert.equal(recPurchase.plannedReceiptDate.toISOString(), "2026-08-15T00:00:00.000Z");
+  assert.equal(recPurchase.plannedReleaseDate.toISOString(), "2026-08-05T00:00:00.000Z");
+  assert.equal(recPurchase.isPastDue, false);
+
+  // Item 202: PRODUCTION with 5d lead time. Required 20 Aug -> Release 15 Aug
+  const recProduction = results.find((r) => r.itemId === 202);
+  assert.ok(recProduction);
+  assert.equal(recProduction.recommendationType, "PRODUCTION");
+  assert.equal(recProduction.requiredDate.toISOString(), "2026-08-20T00:00:00.000Z");
+  assert.equal(recProduction.plannedReceiptDate.toISOString(), "2026-08-20T00:00:00.000Z");
+  assert.equal(recProduction.plannedReleaseDate.toISOString(), "2026-08-15T00:00:00.000Z");
+  assert.equal(recProduction.isPastDue, false);
 });
 

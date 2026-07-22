@@ -165,8 +165,8 @@ class MRPService {
     // Step 5: Supply Allocation (Allocated Requirements)
     const allocatedRequirements = allocateSupply(netRequirements, purchaseOrders, productionOrders);
 
-    // Step 6: Recommendation Generation (Action Recommendations)
-    const recommendations = generateRecommendations(allocatedRequirements, items);
+    // Step 6: Recommendation Generation (Action Recommendations with Lot Sizing & Lead Time Scheduling)
+    const recommendations = generateRecommendations(allocatedRequirements, items, planningDate);
 
     // Step 7: Summary & Structured Output
     const summary = this._buildPlanningSummary(

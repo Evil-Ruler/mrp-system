@@ -77,6 +77,8 @@
  * @property {number} [fixedOrderQuantity] Fixed order quantity (for FOQ)
  * @property {number} [minimumOrderQuantity] Minimum order quantity threshold (for MOQ)
  * @property {number} [orderMultiple] Order quantity rounding multiple (for ORDER_MULTIPLE)
+ * @property {number} [purchaseLeadTimeDays=0] Purchase lead time in calendar days (for PURCHASE items)
+ * @property {number} [manufacturingLeadTimeDays=0] In-house manufacturing lead time in calendar days (for PRODUCTION items)
  */
 
 // ============================================================================
@@ -142,7 +144,10 @@
  * @property {ItemId} itemId Item requiring procurement or manufacturing
  * @property {Quantity} shortageQuantity Raw unfulfilled remaining shortage quantity
  * @property {Quantity} quantity Recommended lot-sized order quantity
- * @property {RequiredDate} requiredDate Date order must be available
+ * @property {RequiredDate} requiredDate Upstream customer demand due date
+ * @property {Date} plannedReceiptDate Target date materials must arrive (equals requiredDate in V1)
+ * @property {Date} plannedReleaseDate Target date order must be released (plannedReceiptDate - leadTimeDays)
+ * @property {boolean} isPastDue True if plannedReleaseDate < planningDate
  * @property {DemandSourceType} demandSourceType Origin source type of demand
  * @property {SalesOrderId} salesOrderId Upstream sales order reference
  * @property {SalesOrderLineId} salesOrderLineId Upstream sales order line item sequence

@@ -89,6 +89,22 @@ function validateItems(items) {
         );
       }
     }
+
+    if (item.purchaseLeadTimeDays !== undefined && item.purchaseLeadTimeDays !== null) {
+      if (typeof item.purchaseLeadTimeDays !== "number" || !Number.isInteger(item.purchaseLeadTimeDays) || item.purchaseLeadTimeDays < 0) {
+        throw new ValidationError(
+          `Item ${item.itemId} has invalid purchaseLeadTimeDays (${item.purchaseLeadTimeDays}). Must be a non-negative integer.`
+        );
+      }
+    }
+
+    if (item.manufacturingLeadTimeDays !== undefined && item.manufacturingLeadTimeDays !== null) {
+      if (typeof item.manufacturingLeadTimeDays !== "number" || !Number.isInteger(item.manufacturingLeadTimeDays) || item.manufacturingLeadTimeDays < 0) {
+        throw new ValidationError(
+          `Item ${item.itemId} has invalid manufacturingLeadTimeDays (${item.manufacturingLeadTimeDays}). Must be a non-negative integer.`
+        );
+      }
+    }
   }
 }
 
