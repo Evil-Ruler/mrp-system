@@ -1,3 +1,4 @@
+const inventoryRoutes = require("./inventory/routes/inventory.routes");
 const express = require("express");
 const cors = require("cors");
 
@@ -6,8 +7,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => {
-    res.send("MRP Backend Running");
-});
+app.use("/api/inventory", inventoryRoutes);
+
+
 
 module.exports = app;

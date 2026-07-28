@@ -34,7 +34,7 @@ model Supplier {
 }
 
 model Item {
-  itemId            Int     @id @map("item_id")
+  itemId Int @id @default(autoincrement()) @map("item_id")
   itemCode          String  @unique @map("item_code")
   itemName          String  @map("item_name")
   category          String
