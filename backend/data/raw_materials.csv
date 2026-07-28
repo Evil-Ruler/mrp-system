@@ -1,0 +1,31 @@
+item_id,item_code,item_name,category,uom,current_stock,reorder_level,purchase_rate,selling_price,preferred_supplier
+1,RM001,Teak Wood Plank,Raw Material,CFT,850,200,1800,0,SUP001
+2,RM002,Oak Wood Plank,Raw Material,CFT,650,150,1600,0,SUP001
+3,RM003,Pine Wood Plank,Raw Material,CFT,900,250,1200,0,SUP001
+4,RM004,Plywood 18mm,Raw Material,Sheet,300,100,2200,0,SUP002
+5,RM005,Plywood 12mm,Raw Material,Sheet,350,100,1800,0,SUP002
+6,RM006,MDF Board 18mm,Raw Material,Sheet,450,120,900,0,SUP003
+7,RM007,MDF Board 12mm,Raw Material,Sheet,500,120,750,0,SUP003
+8,RM008,Walnut Veneer,Raw Material,Sheet,200,50,1200,0,SUP004
+9,RM009,Teak Veneer,Raw Material,Sheet,180,50,1400,0,SUP004
+10,RM010,White Laminate,Raw Material,Sheet,350,80,950,0,SUP005
+11,RM011,Wood Finish Laminate,Raw Material,Sheet,275,80,1100,0,SUP005
+12,RM012,Black Laminate,Raw Material,Sheet,250,60,980,0,SUP005
+13,RM013,Glass Panel 8mm,Raw Material,SqFt,500,100,250,0,SUP009
+14,RM014,Glass Panel 12mm,Raw Material,SqFt,300,80,350,0,SUP009
+15,RM015,Mirror Panel,Raw Material,SqFt,300,60,300,0,SUP009
+16,RM016,PVC Edge Band White,Raw Material,Meter,5000,1000,12,0,SUP005
+17,RM017,PVC Edge Band Black,Raw Material,Meter,4500,1000,12,0,SUP005
+18,RM018,PVC Edge Band Teak,Raw Material,Meter,4000,800,15,0,SUP005
+19,RM019,Rubber Wood,Raw Material,CFT,500,120,1000,0,SUP001
+20,RM020,Beech Wood,Raw Material,CFT,450,100,1700,0,SUP001
+21,RM021,Particle Board,Raw Material,Sheet,600,150,700,0,SUP003
+22,RM022,Acrylic Sheet White,Raw Material,Sheet,220,50,1600,0,SUP005
+23,RM023,Acrylic Sheet Black,Raw Material,Sheet,180,50,1650,0,SUP005
+24,RM024,Decorative Veneer,Raw Material,Sheet,150,40,1500,0,SUP004
+25,RM025,Frosted Glass,Raw Material,SqFt,250,60,320,0,SUP009
+26,RM026,Marine Plywood,Raw Material,Sheet,180,50,2600,0,SUP002
+27,RM027,Block Board,Raw Material,Sheet,220,60,1900,0,SUP002
+28,RM028,Cane Sheet,Raw Material,Sheet,120,30,800,0,SUP004
+29,RM029,Bamboo Board,Raw Material,Sheet,140,40,1300,0,SUP001
+30,RM030,Engineered Wood Panel,Raw Material,Sheet,200,50,2100,0,SUP003

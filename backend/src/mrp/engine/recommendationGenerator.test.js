@@ -1,0 +1,525 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const { generateRecommendations } = require("./recommendationGenerator");
+
+// ============================================================================
+// DOMAIN FIXTURE BUILDERS & CONSTANTS
+// ============================================================================
+
+const ITEM_PURCHASED = 3001; // e.g. Bolt
+const ITEM_MANUFACTURED = 2001; // e.g. Gearbox Sub-Assembly
+
+function createAllocatedRequirement(overrides = {}) {
+  return {
+    demandSourceType: "SALES_ORDER",
+    salesOrderId: "SO-100",
+    salesOrderLineId: 1,
+    itemId: ITEM_PURCHASED,
+    grossRequirement: 50,
+    availableInventoryUsed: 10,
+    netRequirement: 40,
+    purchaseSupplyUsed: 10,
+    productionSupplyUsed: 0,
+    remainingShortage: 30,
+    requiredDate: new Date("2026-08-10T00:00:00.000Z"),
+    bomLevel: 1,
+    path: [1000, ITEM_PURCHASED],
+    ...overrides,
+  };
+}
+
+function createItemMaster() {
+  return [
+    { itemId: ITEM_PURCHASED, itemCode: "BOLT-01", procurementType: "PURCHASE" },
+    { itemId: ITEM_MANUFACTURED, itemCode: "GEAR-01", procurementType: "PRODUCTION" },
+  ];
+}
+
+function assertRecommendationInvariants(results, allocatedReqs) {
+  for (let i = 0; i < results.length; i++) {
+    const rec = results[i];
+    assert.equal(rec.demandSourceType, "SALES_ORDER");
+    assert.ok(rec.quantity > 0, `quantity must be > 0, got ${rec.quantity}`);
+    assert.ok(
+      rec.recommendationType === "PURCHASE" || rec.recommendationType === "PRODUCTION",
+      `Invalid recommendationType: ${rec.recommendationType}`
+    );
+    assert.ok(rec.requiredDate instanceof Date, "requiredDate must be a Date instance");
+    assert.ok(rec.plannedReceiptDate instanceof Date, "plannedReceiptDate must be a Date instance");
+    assert.ok(rec.plannedReleaseDate instanceof Date, "plannedReleaseDate must be a Date instance");
+    assert.equal(typeof rec.isPastDue, "boolean", "isPastDue must be a boolean");
+    assert.ok(Array.isArray(rec.path) && rec.path.length > 0, "path must be a non-empty array");
+
+    // Match parent allocated requirement
+    const match = allocatedReqs.find(
+      (req) => req.salesOrderId === rec.salesOrderId && req.salesOrderLineId === rec.salesOrderLineId && req.itemId === rec.itemId
+    );
+    assert.ok(match, "Recommendation must map to an allocated requirement");
+    assert.equal(rec.shortageQuantity, match.remainingShortage, "shortageQuantity must equal remainingShortage");
+  }
+}
+
+// ============================================================================
+// 1. BOUNDARY & EMPTY INPUT TESTS
+// ============================================================================
+
+test("generateRecommendations - returns empty array for null, undefined, or empty allocated requirements", () => {
+  assert.deepStrictEqual(generateRecommendations(null, []), []);
+  assert.deepStrictEqual(generateRecommendations(undefined, []), []);
+  assert.deepStrictEqual(generateRecommendations([], []), []);
+});
+
+test("generateRecommendations - returns empty array when all requirements have remainingShortage <= 0", () => {
+  const allocated = [
+    createAllocatedRequirement({ remainingShortage: 0 }),
+    createAllocatedRequirement({ remainingShortage: -5 }),
+  ];
+
+  const results = generateRecommendations(allocated, createItemMaster());
+  assert.deepStrictEqual(results, []);
+});
+
+// ============================================================================
+// 2. PROCUREMENT TYPE & BUSINESS RULE TESTS
+// ============================================================================
+
+test("generateRecommendations - generates PURCHASE recommendation for purchased items", () => {
+  const allocated = [createAllocatedRequirement({ itemId: ITEM_PURCHASED, remainingShortage: 30 })];
+  const items = createItemMaster();
+
+  const results = generateRecommendations(allocated, items);
+
+  assert.equal(results.length, 1);
+  assertRecommendationInvariants(results, allocated);
+  assert.equal(results[0].recommendationType, "PURCHASE");
+  assert.equal(results[0].itemId, ITEM_PURCHASED);
+  assert.equal(results[0].quantity, 30);
+});
+
+test("generateRecommendations - generates PRODUCTION recommendation for manufactured items", () => {
+  const allocated = [createAllocatedRequirement({ itemId: ITEM_MANUFACTURED, remainingShortage: 45 })];
+  const items = createItemMaster();
+
+  const results = generateRecommendations(allocated, items);
+
+  assert.equal(results.length, 1);
+  assertRecommendationInvariants(results, allocated);
+  assert.equal(results[0].recommendationType, "PRODUCTION");
+  assert.equal(results[0].itemId, ITEM_MANUFACTURED);
+  assert.equal(results[0].quantity, 45);
+});
+
+test("generateRecommendations - defaults to PURCHASE when item is unknown or missing procurementType", () => {
+  const UNKNOWN_ITEM_ID = 9999;
+  const allocated = [createAllocatedRequirement({ itemId: UNKNOWN_ITEM_ID, remainingShortage: 20 })];
+
+  const results = generateRecommendations(allocated, []);
+
+  assert.equal(results.length, 1);
+  assertRecommendationInvariants(results, allocated);
+  assert.equal(results[0].recommendationType, "PURCHASE");
+  assert.equal(results[0].itemId, UNKNOWN_ITEM_ID);
+});
+
+test("generateRecommendations - handles mixed shortages (30, 0, 15, 0) by creating exactly 2 recommendations", () => {
+  const allocated = [
+    createAllocatedRequirement({ salesOrderLineId: 1, remainingShortage: 30 }),
+    createAllocatedRequirement({ salesOrderLineId: 2, remainingShortage: 0 }),
+    createAllocatedRequirement({ salesOrderLineId: 3, remainingShortage: 15 }),
+    createAllocatedRequirement({ salesOrderLineId: 4, remainingShortage: 0 }),
+  ];
+
+  const results = generateRecommendations(allocated, createItemMaster());
+
+  assert.equal(results.length, 2);
+  assertRecommendationInvariants(results, allocated);
+
+  assert.equal(results[0].salesOrderLineId, 1);
+  assert.equal(results[0].quantity, 30);
+
+  assert.equal(results[1].salesOrderLineId, 3);
+  assert.equal(results[1].quantity, 15);
+});
+
+test("generateRecommendations - defaults to PURCHASE when item master contains invalid procurementType string", () => {
+  const allocated = [createAllocatedRequirement({ itemId: ITEM_PURCHASED, remainingShortage: 20 })];
+  const items = [{ itemId: ITEM_PURCHASED, procurementType: "INVALID" }];
+
+  const results = generateRecommendations(allocated, items);
+
+  assert.equal(results.length, 1);
+  assertRecommendationInvariants(results, allocated);
+  assert.equal(results[0].recommendationType, "PURCHASE");
+});
+
+test("generateRecommendations - preserves full sales order demand line traceability without aggregation", () => {
+  const allocated = [
+    createAllocatedRequirement({ salesOrderId: "SO-001", salesOrderLineId: 1, itemId: ITEM_PURCHASED, remainingShortage: 15 }),
+    createAllocatedRequirement({ salesOrderId: "SO-001", salesOrderLineId: 2, itemId: ITEM_PURCHASED, remainingShortage: 25 }),
+    createAllocatedRequirement({ salesOrderId: "SO-002", salesOrderLineId: 1, itemId: ITEM_MANUFACTURED, remainingShortage: 10 }),
+  ];
+
+  const results = generateRecommendations(allocated, createItemMaster());
+
+  assert.equal(results.length, 3);
+  assertRecommendationInvariants(results, allocated);
+
+  const rec1 = results.find((r) => r.salesOrderId === "SO-001" && r.salesOrderLineId === 1);
+  assert.ok(rec1);
+  assert.equal(rec1.quantity, 15);
+  assert.equal(rec1.recommendationType, "PURCHASE");
+
+  const rec2 = results.find((r) => r.salesOrderId === "SO-001" && r.salesOrderLineId === 2);
+  assert.ok(rec2);
+  assert.equal(rec2.quantity, 25);
+  assert.equal(rec2.recommendationType, "PURCHASE");
+
+  const rec3 = results.find((r) => r.salesOrderId === "SO-002" && r.salesOrderLineId === 1);
+  assert.ok(rec3);
+  assert.equal(rec3.quantity, 10);
+  assert.equal(rec3.recommendationType, "PRODUCTION");
+});
+
+test("generateRecommendations - duplicate item across different sales orders creates separate recommendations without aggregation", () => {
+  const allocated = [
+    createAllocatedRequirement({ salesOrderId: "SO-001", salesOrderLineId: 1, itemId: ITEM_PURCHASED, remainingShortage: 10 }),
+    createAllocatedRequirement({ salesOrderId: "SO-002", salesOrderLineId: 1, itemId: ITEM_PURCHASED, remainingShortage: 20 }),
+  ];
+
+  const results = generateRecommendations(allocated, createItemMaster());
+
+  assert.equal(results.length, 2);
+  assertRecommendationInvariants(results, allocated);
+  assert.equal(results[0].salesOrderId, "SO-001");
+  assert.equal(results[0].quantity, 10);
+  assert.equal(results[1].salesOrderId, "SO-002");
+  assert.equal(results[1].quantity, 20);
+});
+
+// ============================================================================
+// 3. IMMUTABILITY & FRESH ALLOCATION TESTS
+// ============================================================================
+
+test("generateRecommendations - guarantees input data structures are never mutated using structuredClone", () => {
+  const allocated = [createAllocatedRequirement({ remainingShortage: 30 })];
+  const items = createItemMaster();
+
+  const baselineAllocated = structuredClone(allocated);
+  const baselineItems = structuredClone(items);
+
+  const results = generateRecommendations(allocated, items);
+
+  assert.deepStrictEqual(allocated, baselineAllocated);
+  assert.deepStrictEqual(items, baselineItems);
+  assert.notEqual(results, allocated);
+});
+
+test("generateRecommendations - returned collections, requiredDate instances, and path arrays are freshly allocated across calls", () => {
+  const reqDate = new Date("2026-08-10T00:00:00.000Z");
+  const allocated = [createAllocatedRequirement({ remainingShortage: 30, requiredDate: reqDate })];
+  const items = createItemMaster();
+
+  const run1 = generateRecommendations(allocated, items);
+  const run2 = generateRecommendations(allocated, items);
+
+  assert.notEqual(run1, run2);
+  assert.notEqual(run1[0], run2[0]);
+
+  // Date reference cloning verification
+  assert.notEqual(run1[0].requiredDate, allocated[0].requiredDate);
+  assert.equal(run1[0].requiredDate.getTime(), allocated[0].requiredDate.getTime());
+
+  // Path array reference cloning verification
+  assert.notEqual(run1[0].path, run2[0].path);
+  run1[0].path.push(9999);
+  assert.equal(run2[0].path.includes(9999), false);
+});
+
+// ============================================================================
+// 4. STRESS & DETERMINISM TESTS
+// ============================================================================
+
+test("generateRecommendations - handles 1000+ allocated requirements deterministically", () => {
+  const COUNT = 1000;
+  const allocated = [];
+
+  for (let i = 1; i <= COUNT; i++) {
+    allocated.push(
+      createAllocatedRequirement({
+        salesOrderId: `SO-${String(i).padStart(4, "0")}`,
+        salesOrderLineId: 1,
+        itemId: i % 2 === 0 ? ITEM_PURCHASED : ITEM_MANUFACTURED,
+        remainingShortage: (i % 50) + 1,
+      })
+    );
+  }
+
+  const items = createItemMaster();
+
+  const run1 = generateRecommendations(allocated, items);
+  const run2 = generateRecommendations(allocated, items);
+
+  assert.equal(run1.length, COUNT);
+  assert.deepStrictEqual(run1, run2);
+  assertRecommendationInvariants(run1, allocated);
+});
+
+// ============================================================================
+// 5. REGRESSION & CATEGORY ISOLATION TESTS
+// ============================================================================
+
+test("generateRecommendations - operates on narrow Planning DTOs without category or itemType fields", () => {
+  const allocated = [
+    createAllocatedRequirement({ itemId: 100, remainingShortage: 20 }),
+    createAllocatedRequirement({ itemId: 200, remainingShortage: 30 }),
+  ];
+
+  // Item objects strictly containing NO category or itemType property
+  const items = [
+    { itemId: 100, itemCode: "FG-100", baseUom: "PCS", procurementType: "PRODUCTION" },
+    { itemId: 200, itemCode: "RM-200", baseUom: "KG", procurementType: "PURCHASE" },
+  ];
+
+  const results = generateRecommendations(allocated, items);
+
+  assert.equal(results.length, 2);
+  assert.equal(results[0].recommendationType, "PRODUCTION");
+  assert.equal(results[1].recommendationType, "PURCHASE");
+  assert.equal("category" in items[0], false);
+  assert.equal("itemType" in items[0], false);
+});
+
+// ============================================================================
+// 6. LOT SIZING POLICIES & MIXED POLICY INTEGRATION TESTS
+// ============================================================================
+
+test("generateRecommendations - mixed policy integration test (L4L, FOQ, MOQ, ORDER_MULTIPLE)", () => {
+  const items = [
+    { itemId: 101, itemCode: "ITEM-A", procurementType: "PURCHASE", lotSizingPolicy: "L4L" },
+    { itemId: 102, itemCode: "ITEM-B", procurementType: "PURCHASE", lotSizingPolicy: "FOQ", fixedOrderQuantity: 100 },
+    { itemId: 103, itemCode: "ITEM-C", procurementType: "PURCHASE", lotSizingPolicy: "MOQ", minimumOrderQuantity: 50 },
+    { itemId: 104, itemCode: "ITEM-D", procurementType: "PURCHASE", lotSizingPolicy: "ORDER_MULTIPLE", orderMultiple: 25 },
+  ];
+
+  const allocatedReqs = [
+    createAllocatedRequirement({ itemId: 101, remainingShortage: 37, salesOrderId: "SO-001", salesOrderLineId: 1 }),
+    createAllocatedRequirement({ itemId: 102, remainingShortage: 37, salesOrderId: "SO-002", salesOrderLineId: 1 }),
+    createAllocatedRequirement({ itemId: 103, remainingShortage: 18, salesOrderId: "SO-003", salesOrderLineId: 1 }),
+    createAllocatedRequirement({ itemId: 104, remainingShortage: 31, salesOrderId: "SO-004", salesOrderLineId: 1 }),
+  ];
+
+  const results = generateRecommendations(allocatedReqs, items);
+
+  assert.equal(results.length, 4);
+
+  // Item A (L4L): Shortage 37 -> Rec 37
+  const recA = results.find((r) => r.itemId === 101);
+  assert.ok(recA);
+  assert.equal(recA.shortageQuantity, 37);
+  assert.equal(recA.quantity, 37);
+
+  // Item B (FOQ 100): Shortage 37 -> Rec 100
+  const recB = results.find((r) => r.itemId === 102);
+  assert.ok(recB);
+  assert.equal(recB.shortageQuantity, 37);
+  assert.equal(recB.quantity, 100);
+
+  // Item C (MOQ 50): Shortage 18 -> Rec 50
+  const recC = results.find((r) => r.itemId === 103);
+  assert.ok(recC);
+  assert.equal(recC.shortageQuantity, 18);
+  assert.equal(recC.quantity, 50);
+
+  // Item D (ORDER_MULTIPLE 25): Shortage 31 -> Rec 50
+  const recD = results.find((r) => r.itemId === 104);
+  assert.ok(recD);
+  assert.equal(recD.shortageQuantity, 31);
+  assert.equal(recD.quantity, 50);
+});
+
+// ============================================================================
+// 7. LEAD TIME BACKWARD SCHEDULING & MIXED PROCUREMENT INTEGRATION TEST
+// ============================================================================
+
+test("generateRecommendations - mixed procurement integration test (PURCHASE 10d vs PRODUCTION 5d)", () => {
+  const planningDate = new Date("2026-08-01T00:00:00.000Z");
+
+  const items = [
+    {
+      itemId: 201,
+      itemCode: "RAW-BOLT",
+      procurementType: "PURCHASE",
+      purchaseLeadTimeDays: 10,
+      manufacturingLeadTimeDays: 0,
+    },
+    {
+      itemId: 202,
+      itemCode: "ASSEMBLY-GEAR",
+      procurementType: "PRODUCTION",
+      purchaseLeadTimeDays: 0,
+      manufacturingLeadTimeDays: 5,
+    },
+  ];
+
+  const allocatedReqs = [
+    createAllocatedRequirement({
+      itemId: 201,
+      remainingShortage: 100,
+      requiredDate: new Date("2026-08-15T00:00:00.000Z"),
+      salesOrderId: "SO-PURCHASE",
+      salesOrderLineId: 1,
+    }),
+    createAllocatedRequirement({
+      itemId: 202,
+      remainingShortage: 50,
+      requiredDate: new Date("2026-08-20T00:00:00.000Z"),
+      salesOrderId: "SO-PRODUCTION",
+      salesOrderLineId: 1,
+    }),
+  ];
+
+  const results = generateRecommendations(allocatedReqs, items, planningDate);
+
+  assert.equal(results.length, 2);
+
+  // Item 201: PURCHASE with 10d lead time. Required 15 Aug -> Release 5 Aug
+  const recPurchase = results.find((r) => r.itemId === 201);
+  assert.ok(recPurchase);
+  assert.equal(recPurchase.recommendationType, "PURCHASE");
+  assert.equal(recPurchase.requiredDate.toISOString(), "2026-08-15T00:00:00.000Z");
+  assert.equal(recPurchase.plannedReceiptDate.toISOString(), "2026-08-15T00:00:00.000Z");
+  assert.equal(recPurchase.plannedReleaseDate.toISOString(), "2026-08-05T00:00:00.000Z");
+  assert.equal(recPurchase.isPastDue, false);
+
+  // Item 202: PRODUCTION with 5d lead time. Required 20 Aug -> Release 15 Aug
+  const recProduction = results.find((r) => r.itemId === 202);
+  assert.ok(recProduction);
+  assert.equal(recProduction.recommendationType, "PRODUCTION");
+  assert.equal(recProduction.requiredDate.toISOString(), "2026-08-20T00:00:00.000Z");
+  assert.equal(recProduction.plannedReceiptDate.toISOString(), "2026-08-20T00:00:00.000Z");
+  assert.equal(recProduction.plannedReleaseDate.toISOString(), "2026-08-15T00:00:00.000Z");
+  assert.equal(recProduction.isPastDue, false);
+});
+
+// ============================================================================
+// 8. ENTERPRISE POLICY INTERACTION INTEGRATION TEST
+// ============================================================================
+
+test("policy interaction integration test - Netting + Safety Stock + FOQ Lot Sizing + Lead Time", () => {
+  const { calculateInventoryNetting } = require("./inventoryNetting");
+  const { applySafetyStockPolicy } = require("../policies/safetyStock/safetyStockPolicy");
+  const { allocateSupply } = require("./supplyAllocation");
+
+  const planningDate = new Date("2026-08-01T00:00:00.000Z");
+
+  const item = {
+    itemId: 501,
+    itemCode: "ITEM-FOQ-SS",
+    procurementType: "PURCHASE",
+    purchaseLeadTimeDays: 7,
+    lotSizingPolicy: "FOQ",
+    fixedOrderQuantity: 100,
+    safetyStock: 20,
+  };
+
+  const inventory = [{ itemId: 501, availableQuantity: 100 }];
+  const grossReqs = [
+    {
+      demandSourceType: "SALES_ORDER",
+      salesOrderId: "SO-501",
+      salesOrderLineId: 1,
+      itemId: 501,
+      requiredQuantity: 95,
+      requiredDate: new Date("2026-08-10T00:00:00.000Z"),
+      bomLevel: 0,
+      path: [501],
+    },
+  ];
+
+  // Stage 2A: Inventory Netting (Demand Shortage)
+  // Stock = 100, Demand = 95 -> demandRequirement = 0, remainingStock = 5
+  const demandNet = calculateInventoryNetting(grossReqs, inventory);
+  assert.equal(demandNet[0].availableInventoryUsed, 95);
+  assert.equal(demandNet[0].netRequirement, 0);
+
+  // Stage 2B: Safety Stock Policy
+  // Buffer needed = 20, remainingStock = 5 -> safetyStockDeficit = 15 -> effectiveNetRequirement = 15
+  const effectiveNet = applySafetyStockPolicy(demandNet, inventory, [item]);
+  assert.equal(effectiveNet.length, 1);
+  assert.equal(effectiveNet[0].demandRequirement, 0);
+  assert.equal(effectiveNet[0].safetyStockDeficit, 15);
+  assert.equal(effectiveNet[0].netRequirement, 15);
+
+  // Stage 3: Supply Allocation
+  const allocated = allocateSupply(effectiveNet, [], []);
+  assert.equal(allocated[0].remainingShortage, 15);
+
+  // Stage 4: Recommendation Generation (FOQ 100 + Lead Time 7d)
+  const recommendations = generateRecommendations(allocated, [item], planningDate);
+
+  assert.equal(recommendations.length, 1);
+  const rec = recommendations[0];
+  assert.equal(rec.recommendationType, "PURCHASE");
+  assert.equal(rec.shortageQuantity, 15);
+  assert.equal(rec.quantity, 100); // Shortage 15 rounded up to FOQ batch of 100
+  assert.equal(rec.requiredDate.toISOString(), "2026-08-10T00:00:00.000Z");
+  assert.equal(rec.plannedReceiptDate.toISOString(), "2026-08-10T00:00:00.000Z");
+  assert.equal(rec.plannedReleaseDate.toISOString(), "2026-08-03T00:00:00.000Z");
+  assert.equal(rec.isPastDue, false);
+});
+
+// ============================================================================
+// 9. CROSS-POLICY INTEGRATION TEST (NETTING + FOQ + MAX ORDER SPLIT + LEAD TIME)
+// ============================================================================
+
+test("cross-policy integration test - Netting + FOQ Lot Sizing + Max Order Quantity Modifier + Lead Time Scheduling", () => {
+  const planningDate = new Date("2026-08-01T00:00:00.000Z");
+
+  const item = {
+    itemId: 601,
+    itemCode: "ITEM-FOQ-MAX-SPLIT",
+    procurementType: "PURCHASE",
+    purchaseLeadTimeDays: 5,
+    lotSizingPolicy: "FOQ",
+    fixedOrderQuantity: 250,
+    maxOrderQuantity: 200,
+  };
+
+  const allocatedReqs = [
+    createAllocatedRequirement({
+      itemId: 601,
+      remainingShortage: 600,
+      requiredDate: new Date("2026-08-15T00:00:00.000Z"),
+      salesOrderId: "SO-601",
+      salesOrderLineId: 1,
+    }),
+  ];
+
+  // Demand = 600 -> FOQ 250 rounds up to 750 -> Max Order Quantity 200 splits 750 into [200, 200, 200, 150]
+  // Lead Time 5d backward schedules each split order from 15 Aug to 10 Aug.
+  const results = generateRecommendations(allocatedReqs, [item], planningDate);
+
+  assert.equal(results.length, 4);
+
+  const parentId = results[0].parentSplitId;
+  assert.ok(parentId && parentId.startsWith("SPLIT-SO-601-1-601-"));
+
+  // Check 4 split recommendation items
+  const expectedQuantities = [200, 200, 200, 150];
+
+  for (let i = 0; i < results.length; i++) {
+    const rec = results[i];
+    assert.equal(rec.itemId, 601);
+    assert.equal(rec.shortageQuantity, 600);
+    assert.equal(rec.quantity, expectedQuantities[i]);
+    assert.equal(rec.parentSplitId, parentId);
+    assert.equal(rec.splitSequence, i + 1);
+    assert.equal(rec.splitTotalCount, 4);
+    assert.equal(rec.modifierReason, "MAX_ORDER_QUANTITY");
+    assert.equal(rec.plannedReceiptDate.toISOString(), "2026-08-15T00:00:00.000Z");
+    assert.equal(rec.plannedReleaseDate.toISOString(), "2026-08-10T00:00:00.000Z");
+    assert.equal(rec.isPastDue, false);
+  }
+});
+

@@ -1,0 +1,174 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Customer {
+  customerId   String @id @map("customer_id")
+  customerName String @map("customer_name")
+  phone        String
+  email        String @unique
+  address      String
+  gstin        String @unique
+  paymentTerms String @map("payment_terms")
+
+  salesorders SalesOrder[]
+
+  @@map("customers")
+}
+
+model Supplier {
+  supplierId   String @id @map("supplier_id")
+  supplierName String @map("supplier_name")
+  phone        String
+  email        String @unique
+  address      String
+  leadTimeDays Int    @map("lead_time_days")
+
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model Item {
+  itemId            Int     @id @map("item_id")
+  itemCode          String  @unique @map("item_code")
+  itemName          String  @map("item_name")
+  category          String
+  uom               String
+  currentStock      Int     @map("current_stock")
+  reorderLevel      Int     @map("reorder_level")
+  purchaseRate      Float   @map("purchase_rate")
+  sellingPrice      Float?  @map("selling_price")
+  procurementType     String? @map("procurement_type")
+  lotSizingPolicy     String? @default("L4L") @map("lot_sizing_policy")
+  fixedOrderQuantity  Int?    @map("fixed_order_quantity")
+  minimumOrderQuantity Int?   @map("minimum_order_quantity")
+  orderMultiple       Int?    @map("order_multiple")
+  purchaseLeadTimeDays Int?   @default(0) @map("purchase_lead_time_days")
+  manufacturingLeadTimeDays Int? @default(0) @map("manufacturing_lead_time_days")
+  safetyStock             Int?    @default(0) @map("safety_stock")
+  maxOrderQuantity        Int?    @map("max_order_quantity")
+  minimumPlanningQuantity Int?    @map("minimum_planning_quantity")
+
+  productionOrders   ProductionOrder[]
+  bomHeaders         BOMHeader[]
+  bomMaterials       BOMLine[]
+  salesOrderLines    SalesOrderLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+
+  @@map("items")
+}
+
+model SalesOrder {
+  salesOrderId String   @id @map("sales_order_id")
+  customerId   String   @map("customer_id")
+  orderDate    DateTime @map("order_date")
+  status       String
+
+  // Relation
+  customer Customer @relation(fields: [customerId], references: [customerId])
+
+  productionOrders ProductionOrder[]
+  salesOrderLines  SalesOrderLine[]
+
+  @@index([status])
+  @@index([orderDate])
+  @@map("sales_orders")
+}
+
+model PurchaseOrder {
+  purchaseOrderId String   @id @map("purchase_order_id")
+  supplierId      String   @map("supplier_id")
+  orderDate       DateTime @map("order_date")
+  status          String
+
+  // Relation
+  supplier Supplier @relation(fields: [supplierId], references: [supplierId])
+
+  purchaseOrderLines PurchaseOrderLine[]
+
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+model ProductionOrder {
+  productionOrderId String @id @map("production_order_id")
+
+  salesOrderId String @map("sales_order_id")
+  productId    Int    @map("product_id")
+
+  quantity  Int
+  startDate DateTime @map("start_date")
+  status    String
+
+  // Relations
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [salesOrderId])
+  product    Item       @relation(fields: [productId], references: [itemId])
+
+  @@index([status])
+  @@index([startDate])
+  @@map("production_orders")
+}
+
+model BOMHeader {
+  bomId          String @id @map("bom_id")
+  finishedGoodId Int    @map("finished_good_id")
+
+  // Relation
+  finishedGood Item @relation(fields: [finishedGoodId], references: [itemId])
+
+  // One BOM has many BOM lines
+  bomLines BOMLine[]
+
+  @@index([finishedGoodId])
+  @@map("bom_headers")
+}
+
+model BOMLine {
+  bomLineId        Int    @id @map("bom_line_id")
+  bomId            String @map("bom_id")
+  materialId       Int    @map("material_id")
+  quantityRequired Float  @map("quantity_required")
+
+  // Relations
+  bom      BOMHeader @relation(fields: [bomId], references: [bomId])
+  material Item      @relation(fields: [materialId], references: [itemId])
+
+  @@index([bomId])
+  @@index([materialId])
+  @@map("bom_lines")
+}
+
+model SalesOrderLine {
+  salesOrderLineId Int    @id @map("sales_order_line_id")
+  salesOrderId     String @map("sales_order_id")
+  productId        Int    @map("product_id")
+  quantity         Int
+
+  // Relations
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [salesOrderId])
+  product    Item       @relation(fields: [productId], references: [itemId])
+
+  @@index([salesOrderId])
+  @@index([productId])
+  @@map("sales_order_lines")
+}
+
+model PurchaseOrderLine {
+  purchaseOrderLineId Int    @id @map("purchase_order_line_id")
+  purchaseOrderId     String @map("purchase_order_id")
+  materialId          Int    @map("material_id")
+  quantity            Int
+
+  // Relations
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [purchaseOrderId])
+  material      Item          @relation(fields: [materialId], references: [itemId])
+
+  @@index([purchaseOrderId])
+  @@index([materialId])
+  @@map("purchase_order_lines")
+}

@@ -1,0 +1,16 @@
+item_id,item_code,item_name,category,uom,current_stock,reorder_level,purchase_rate,selling_price,preferred_supplier
+51,CS001,Wood Adhesive Glue,Consumable,Kg,400,100,220,0,SUP010
+52,CS002,Fevicol SH,Consumable,Kg,350,80,260,0,SUP010
+53,CS003,Wood Polish,Consumable,Liter,250,50,450,0,SUP008
+54,CS004,Melamine Polish,Consumable,Liter,180,40,600,0,SUP008
+55,CS005,PU Polish,Consumable,Liter,150,30,850,0,SUP008
+56,CS006,Paint Thinner,Consumable,Liter,300,60,120,0,SUP008
+57,CS007,Wood Filler,Consumable,Kg,150,30,180,0,SUP010
+58,CS008,Sand Paper 80 Grit,Consumable,Nos,1500,300,12,0,SUP008
+59,CS009,Sand Paper 120 Grit,Consumable,Nos,1200,250,15,0,SUP008
+60,CS010,Sand Paper 220 Grit,Consumable,Nos,1000,200,18,0,SUP008
+61,CS011,White Paint,Consumable,Liter,120,25,320,0,SUP008
+62,CS012,Black Paint,Consumable,Liter,110,25,340,0,SUP008
+63,CS013,Wood Stain,Consumable,Liter,90,20,380,0,SUP008
+64,CS014,Cleaning Solvent,Consumable,Liter,100,20,150,0,SUP010
+65,CS015,Masking Tape,Consumable,Roll,500,100,35,0,SUP010
